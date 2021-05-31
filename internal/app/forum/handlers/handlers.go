@@ -26,6 +26,7 @@ func NewHandler(useCase forumUseCase.UseCase) *Handlers {
 func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	forum := &models.Forum{}
+	//easyjson.UnmarshalFromReader(r.Body, forum)
 	if err := json.NewDecoder(r.Body).Decode(forum); err != nil {
 		log.Println(err)
 		httputils.Respond(w, http.StatusInternalServerError, nil)

@@ -12,6 +12,10 @@ CREATE TABLE dbforum.users
     email    CITEXT UNIQUE         NOT NULL
 );
 
+create index on dbforum.users (nickname, email);
+create index on dbforum.users (email);
+
+
 CREATE TABLE dbforum.forum
 (
     id            BIGSERIAL PRIMARY KEY NOT NULL,
@@ -26,6 +30,8 @@ CREATE TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
+create index on dbforum.forum (id, slug);
+
 CREATE TABLE dbforum.thread
 (
     id              BIGSERIAL PRIMARY KEY    NOT NULL,
@@ -35,7 +41,7 @@ CREATE TABLE dbforum.thread
     title           TEXT                     NOT NULL,
     message         TEXT                     NOT NULL,
     votes           INT DEFAULT 0            NOT NULL,
-    slug            TEXT UNIQUE              NOT NULL,
+    slug            citext UNIQUE,
     created         TIMESTAMP WITH TIME ZONE NOT NULL,
 
     FOREIGN KEY (forum_slug)
@@ -43,6 +49,25 @@ CREATE TABLE dbforum.thread
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname)
 );
+
+create index on dbforum.thread (id, forum_slug, created);
+create index on dbforum.thread (id, forum_slug);
+create index on dbforum.thread (id, created);
+create index on dbforum.thread (id, slug);
+
+
+-- CREATE UNIQUE INDEX slug_unique ON dbforum.thread (id, forum_slug, author_nickname, title, message, (slug IS NULL), created)  WHERE slug IS NULL;
+
+-- SELECT id,
+--        forum_slug,
+--        author_nickname,
+--        title,
+--        message,
+--        votes,
+--        cast(slug as text),
+--        created
+-- from dbforum.thread
+-- WHERE id = 25;
 
 CREATE TABLE dbforum.votes
 (
@@ -57,18 +82,21 @@ CREATE TABLE dbforum.votes
         REFERENCES dbforum.thread (id)
 );
 
+create index on dbforum.votes (thread_id, nickname);
+
+
 CREATE TABLE dbforum.post
 (
-    id              BIGSERIAL PRIMARY KEY    NOT NULL,
-    author_nickname CITEXT                   NOT NULL,
-    forum_slug      CITEXT                   NOT NULL,
-    thread_id       BIGINT                   NOT NULL,
-    message         TEXT                     NOT NULL,
+    id              BIGSERIAL PRIMARY KEY               NOT NULL,
+    author_nickname CITEXT                              NOT NULL,
+    forum_slug      CITEXT                              NOT NULL,
+    thread_id       BIGINT                              NOT NULL,
+    message         TEXT                                NOT NULL,
 
-    parent          BIGINT  DEFAULT 0        NOT NULL,
-    is_edited       BOOLEAN DEFAULT false    NOT NULL,
-    created         TIMESTAMP WITH TIME ZONE NOT NULL,
-    tree            TEXT                     NOT NULL,
+    parent          BIGINT   DEFAULT 0                  NOT NULL,
+    is_edited       BOOLEAN  DEFAULT false              NOT NULL,
+    created         TIMESTAMP WITH TIME ZONE            NOT NULL,
+    tree            BIGINT[] DEFAULT ARRAY []::BIGINT[] NOT NULL,
 
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname),
@@ -77,14 +105,27 @@ CREATE TABLE dbforum.post
     FOREIGN KEY (thread_id)
         REFERENCES dbforum.thread (id)
 );
+create index mem on dbforum.post (id, thread_id);
+
+
+explain SELECT *
+FROM dbforum.post
+WHERE tree[1] IN (SELECT id
+                  FROM dbforum.post
+                  WHERE thread_id = 7834
+                    AND parent = 0
+                    AND CASE WHEN 0 > 0 THEN tree[1] > (SELECT tree[1] FROM dbforum.post WHERE id = 1157034) ELSE TRUE END
+                  ORDER BY id
+                  LIMIT 150)
+ORDER BY tree, id;
 
 CREATE TABLE dbforum.forum_users
 (
-    forum_slug CITEXT        NOT NULL,
-    nickname   CITEXT UNIQUE NOT NULL,
-    fullname   TEXT          NOT NULL,
-    about      TEXT          NOT NULL,
-    email      TEXT          NOT NULL,
+    forum_slug CITEXT NOT NULL,
+    nickname   CITEXT NOT NULL,
+    fullname   TEXT   NOT NULL,
+    about      TEXT   NOT NULL,
+    email      TEXT   NOT NULL,
 
     FOREIGN KEY (nickname)
         REFERENCES dbforum.users (nickname),
@@ -93,6 +134,7 @@ CREATE TABLE dbforum.forum_users
 
     PRIMARY KEY (nickname, forum_slug)
 );
+create index on dbforum.forum_users (forum_slug, nickname);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$
@@ -111,7 +153,8 @@ CREATE OR REPLACE FUNCTION dbforum.update_forum_threads() RETURNS TRIGGER AS
 $$
 BEGIN
     UPDATE dbforum.forum
-    SET threads = threads + 1;
+    SET threads = threads + 1
+    WHERE slug = NEW.forum_slug;
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
@@ -120,7 +163,8 @@ CREATE OR REPLACE FUNCTION dbforum.update_forum_posts() RETURNS TRIGGER AS
 $$
 BEGIN
     UPDATE dbforum.forum
-    SET posts = posts + 1;
+    SET posts = posts + 1
+    WHERE slug = NEW.forum_slug;
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
@@ -149,6 +193,48 @@ CREATE TRIGGER post_insert_forum_usert
     ON dbforum.post
     FOR EACH ROW
 EXECUTE FUNCTION dbforum.insert_forum_user();
+
+SELECT fu.nickname, fu.fullname, fu.about, fu.email
+FROM dbforum.forum_users AS fu
+WHERE fu.forum_slug = '_K3It22LZYajS'
+  AND CASE
+          WHEN 'T936wuu3eXl5P.bill' != '' and 'T936wuu3eXl5P.bill' IS NOT NULL THEN fu.nickname > 'T936wuu3eXl5P.bill'
+          ELSE TRUE END
+ORDER BY fu.nickname
+LIMIT 4
+
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE tree[1] IN (SELECT id FROM dbforum.post WHERE thread_id = 3 AND parent = 0 LIMIT 333)
+--   AND CASE WHEN 1 > 0 THEN id > 56 ELSE TRUE END
+-- ORDER BY tree
+
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE thread_id = 2
+--   AND CASE WHEN 2 > 0 THEN tree > (SELECT tree FROM dbforum.post WHERE id = 34) ELSE TRUE END
+-- ORDER BY tree
+-- LIMIT 3
+
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE tree[1] IN (SELECT id FROM dbforum.post WHERE thread_id = 91 AND parent = 0 LIMIT 65)
+--   AND CASE WHEN 0 > 0 THEN id < 228 ELSE TRUE END
+-- ORDER BY tree, id
+
+-- INSERT INTO dbforum.post(author_nickname, forum_slug, thread_id, parent, created, tree, message)
+-- VALUES ($1, $2, $3, $4, $5,
+--         $6 ||
+--         ARRAY [(SELECT currval(pg_get_serial_sequence('dbforum.post', 'id')))], $7)
+-- RETURNING ID
+
+
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE thread_id = 118
+--   AND CASE WHEN 0 > 0 THEN id > 228 ELSE TRUE END
+-- ORDER BY split_part(tree, '.', 1), length(tree), tree
+-- LIMIT 30
 
 -- SELECT *
 -- FROM dbforum.post

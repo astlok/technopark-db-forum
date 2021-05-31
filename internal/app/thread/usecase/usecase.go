@@ -75,13 +75,18 @@ func (u *UseCase) VoteThread(idOrSlug string, vote models.Vote) (models.Thread, 
 func (u *UseCase) CreatePosts(idOrSlug string, posts []models.Post) ([]models.Post, error) {
 	created := strfmt.DateTime(time.Now())
 	result := make([]models.Post, 0, len(posts))
+	if len(posts) == 0 {
+		posts = append(posts, models.Post{Forum: idOrSlug})
+	}
 	for _, post := range posts {
 		post.Created = time.Time(created)
 		post, err := u.postRepo.CreatePost(idOrSlug, post)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, post)
+		if post.Author != "" {
+			result = append(result, post)
+		}
 	}
 	return result, nil
 }
@@ -90,6 +95,9 @@ func (u *UseCase) GetPosts(idOrSlug string, limit int64, since int64, sort strin
 	posts, err := u.postRepo.GetPosts(idOrSlug, limit, since, desc, sort)
 	if err != nil {
 		return nil, err
+	}
+	if posts == nil {
+		return []models.Post{}, nil
 	}
 	return posts, nil
 }

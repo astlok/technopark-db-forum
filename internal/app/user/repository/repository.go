@@ -13,17 +13,30 @@ const (
 	//TODO: навесить индекс на никнейм
 	selectIDByNickname = "SELECT id FROM dbforum.users WHERE nickname = $1"
 
-	selectUsersByForumSlugDesc = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
+	selectUsersByForumSlugSinceDesc = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
 		"FROM dbforum.forum_users AS fu " +
-		"WHERE fu.forum_slug = $1 AND CASE WHEN $2 != '' THEN fu.nickname < $2 ELSE TRUE END " +
+		"WHERE fu.forum_slug = $1 AND fu.nickname < $2 " +
 		"ORDER BY fu.nickname DESC " +
 		"LIMIT $3"
 
-	selectUsersByForumSlug = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
+	selectUsersByForumSlugSince = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
 		"FROM dbforum.forum_users AS fu " +
-		"WHERE fu.forum_slug = $1 AND CASE WHEN $2 != '' THEN fu.nickname > $2 ELSE TRUE END " +
+		"WHERE fu.forum_slug = $1 " +
+		"AND fu.nickname > $2 " +
 		"ORDER BY fu.nickname " +
 		"LIMIT $3"
+
+	selectUsersByForumSlugDesc = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
+		"FROM dbforum.forum_users AS fu " +
+		"WHERE fu.forum_slug = $1 " +
+		"ORDER BY fu.nickname DESC " +
+		"LIMIT $2"
+
+	selectUsersByForumSlug = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
+		"FROM dbforum.forum_users AS fu " +
+		"WHERE fu.forum_slug = $1 " +
+		"ORDER BY fu.nickname " +
+		"LIMIT $2"
 
 	insertUser = `INSERT INTO dbforum.users (
 							   nickname, 
@@ -72,17 +85,48 @@ func (r *Repository) CheckUserExists(nickname string) (uint64, error) {
 }
 
 func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, desc bool) ([]models.User, error) {
-	var users []models.User
-	var err error
-	if desc {
-		err = r.db.Select(&users, selectUsersByForumSlugDesc, forumSlug, since, limit)
-	} else {
-		err = r.db.Select(&users, selectUsersByForumSlug, forumSlug, since, limit)
+	tx, err := r.db.Beginx()
+	if err != nil {
+		return nil, err
 	}
+	var users []models.User
+	row, err := tx.Query("SELECT 1 FROM dbforum.forum WHERE slug = $1 LIMIT 1", forumSlug)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if !row.Next() {
+		_ = tx.Rollback()
+		return nil, customErr.ErrForumNotFound
+	}
+	if err = row.Close(); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if since == "" {
+		if desc {
+			err = r.db.Select(&users, selectUsersByForumSlugDesc, forumSlug, limit)
+		} else {
+			err = r.db.Select(&users, selectUsersByForumSlug, forumSlug, limit)
+		}
+	} else {
+		if desc {
+			err = r.db.Select(&users, selectUsersByForumSlugSinceDesc, forumSlug, since, limit)
+		} else {
+			err = r.db.Select(&users, selectUsersByForumSlugSince, forumSlug, since, limit)
+		}
+	}
+
 	if errors.Is(err, sql.ErrNoRows) {
+		_ = tx.Rollback()
 		return nil, customErr.ErrUserNotFound
 	}
 	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 	return users, nil

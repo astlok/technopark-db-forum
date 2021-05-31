@@ -8,12 +8,14 @@ import (
 
 func Respond(w http.ResponseWriter, code int, data interface{}) {
 	w.WriteHeader(code)
-	w.Header().Set("Content-Type", "application/json")
 	if data != nil {
+		//_, _, err := easyjson.MarshalToHTTPResponseWriter(data, w)
 		err := json.NewEncoder(w).Encode(data)
 		if err != nil {
-			log.Print(err)
+			log.Print(err, data)
 			return
 		}
 	}
 }
+
+

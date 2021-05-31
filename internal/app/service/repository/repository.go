@@ -20,12 +20,13 @@ func (r *Repository) ClearDB() error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`TRUNCATE dbforum.users CASCADE;`)
-	_, err = tx.Exec(`TRUNCATE dbforum.forum_users CASCADE;`)
-	_, err = tx.Exec(`TRUNCATE dbforum.thread CASCADE;`)
-	_, err = tx.Exec(`TRUNCATE dbforum.post CASCADE;`)
-	_, err = tx.Exec(`TRUNCATE dbforum.forum CASCADE;`)
-	_, err = tx.Exec(`TRUNCATE dbforum.votes CASCADE;`)
+
+	_, err = tx.Exec(`TRUNCATE dbforum.post CASCADE`)
+	_, err = tx.Exec(`TRUNCATE dbforum.forum_users CASCADE`)
+	_, err = tx.Exec(`TRUNCATE dbforum.thread CASCADE`)
+	_, err = tx.Exec(`TRUNCATE dbforum.votes CASCADE`)
+	_, err = tx.Exec(`TRUNCATE dbforum.forum CASCADE`)
+	_, err = tx.Exec(`TRUNCATE dbforum.users CASCADE`)
 
 	if err != nil {
 		_ = tx.Rollback()

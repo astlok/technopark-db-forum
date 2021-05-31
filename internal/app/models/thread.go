@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+//easyjson:json
 type Thread struct {
 	ID      uint64    `json:"id,omitempty" db:"id"`
 	Title   string    `json:"title,omitempty" db:"title"`
@@ -15,6 +16,7 @@ type Thread struct {
 	Created time.Time `json:"created,omitempty" db:"created"`
 }
 
+//easyjson:json
 type Vote struct {
 	Nickname string `json:"nickname,omitempty" db:"nickname"`
 	Voice    int    `json:"voice,omitempty" db:"voice"`

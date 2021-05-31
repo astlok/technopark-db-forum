@@ -14,6 +14,7 @@ func NewPostgres(dsn string) (*Postgres, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(10)
 	return &Postgres{
 		db: db,
 	}, nil

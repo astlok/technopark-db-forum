@@ -72,11 +72,13 @@ func (u *UseCase) ChangeMessage(post models.Post) (*models.Post, error) {
 	if err != nil {
 		return nil, err
 	}
-	oldPost.Message = post.Message
-	oldPost.IsEdited = true
-	err = u.postRepo.ChangePost(oldPost)
-	if err != nil {
-		return nil, err
+	if post.Message != "" && post.Message != oldPost.Message {
+		oldPost.Message = post.Message
+		oldPost.IsEdited = true
+		err = u.postRepo.ChangePost(oldPost)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return oldPost, nil
 }

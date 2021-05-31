@@ -24,7 +24,7 @@ func NewHandler(useCase threadUseCase.UseCase) *Handlers {
 	}
 }
 
-func(h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var posts []models.Post
 	if err := json.NewDecoder(r.Body).Decode(&posts); err != nil {
@@ -71,7 +71,7 @@ func(h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 	httputils.Respond(w, http.StatusCreated, posts)
 }
 
-func(h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	idOrSlug := params["slug_or_id"]
 	thread, err := h.useCase.ThreadInfo(idOrSlug)
@@ -90,7 +90,7 @@ func(h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
 	httputils.Respond(w, http.StatusOK, thread)
 }
 
-func(h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var thread models.Thread
 	if err := json.NewDecoder(r.Body).Decode(&thread); err != nil {
@@ -103,7 +103,7 @@ func(h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
 	idOrSlug := params["slug_or_id"]
 	thread, err := h.useCase.ChangeThread(idOrSlug, thread)
 
-	if errors.Is(err, customErr.ErrThreadNotFound){
+	if errors.Is(err, customErr.ErrThreadNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
@@ -115,10 +115,10 @@ func(h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusCreated, thread)
+	httputils.Respond(w, http.StatusOK, thread)
 }
 
-func(h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	idOrSlug := params["slug_or_id"]
 
@@ -157,6 +157,7 @@ func(h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
 		httputils.Respond(w, http.StatusNotFound, resp)
+		return
 	}
 	if err != nil {
 		httputils.Respond(w, http.StatusInternalServerError, nil)
@@ -166,8 +167,8 @@ func(h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 	httputils.Respond(w, http.StatusOK, posts)
 }
 
-func(h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
-	defer  r.Body.Close()
+func (h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	var vote models.Vote
 	if err := json.NewDecoder(r.Body).Decode(&vote); err != nil {
 		httputils.Respond(w, http.StatusInternalServerError, nil)
@@ -177,12 +178,20 @@ func(h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
 
 	params := mux.Vars(r)
 	idOrSlug := params["slug_or_id"]
+	nickname := vote.Nickname
 
 	thread, err := h.useCase.VoteThread(idOrSlug, vote)
 
-	if errors.Is(err, customErr.ErrThreadNotFound){
+	if errors.Is(err, customErr.ErrThreadNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
+		}
+		httputils.Respond(w, http.StatusNotFound, resp)
+		return
+	}
+	if errors.Is(err, customErr.ErrUserNotFound) {
+		resp := map[string]string{
+			"message": "Can't find user by nickname: " + nickname,
 		}
 		httputils.Respond(w, http.StatusNotFound, resp)
 		return

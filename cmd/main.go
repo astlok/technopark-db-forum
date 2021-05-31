@@ -5,15 +5,14 @@ import (
 	forumHandlers "DBForum/internal/app/forum/handlers"
 	forumRepo "DBForum/internal/app/forum/repository"
 	forumUCase "DBForum/internal/app/forum/usecase"
-	"fmt"
-
 	postHandlers "DBForum/internal/app/post/handlers"
 	postRepo "DBForum/internal/app/post/repository"
 	postUCase "DBForum/internal/app/post/usecase"
-
 	serviceHandlers "DBForum/internal/app/service/handlers"
 	serviceRepo "DBForum/internal/app/service/repository"
 	serviceUCase "DBForum/internal/app/service/usecase"
+	"fmt"
+	"github.com/sirupsen/logrus"
 
 	threadHandlers "DBForum/internal/app/thread/handlers"
 	threadRepo "DBForum/internal/app/thread/repository"
@@ -23,7 +22,6 @@ import (
 	userRepo "DBForum/internal/app/user/repository"
 	userUCase "DBForum/internal/app/user/usecase"
 
-
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -31,7 +29,7 @@ import (
 
 func main() {
 
-	postgres, err:= database.NewPostgres("user=postgres dbname=postgres password=admin host=127.0.0.1 port=5432 sslmode=disable")
+	postgres, err := database.NewPostgres("user=postgres dbname=postgres password=admin host=127.0.0.1 port=5432 sslmode=disable")
 
 	if err != nil {
 		log.Fatal(err)
@@ -58,6 +56,7 @@ func main() {
 	router := mux.NewRouter()
 
 	router.Use(commonMiddleware)
+	//router.Use(LoggingRequest)
 	forum := router.PathPrefix("/forum").Subrouter()
 
 	forum.HandleFunc("/create", forumHandler.Create).Methods(http.MethodPost)
@@ -91,7 +90,7 @@ func main() {
 
 	server := &http.Server{
 		Handler: router,
-		Addr: ":5000",
+		Addr:    ":5000",
 	}
 
 	fmt.Printf("Starting server on port %s\n", server.Addr)
@@ -103,6 +102,17 @@ func main() {
 func commonMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func LoggingRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logrus.WithFields(logrus.Fields{
+			"url":    r.URL,
+			"method": r.Method,
+			"body":   r.Body,
+		}).Info()
 		next.ServeHTTP(w, r)
 	})
 }

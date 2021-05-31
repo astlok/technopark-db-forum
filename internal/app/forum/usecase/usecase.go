@@ -47,16 +47,7 @@ func (u *UseCase) GetInfoBySlug(slug string) (*models.Forum, error) {
 }
 
 func (u *UseCase) CreateThread(thread *models.Thread) (*models.Thread, error) {
-	_, err := u.forumRepo.CheckForumExists(thread.Forum)
-	if err != nil {
-		return nil, err
-	}
-	_, err = u.userRepo.CheckUserExists(thread.Author)
-	if err != nil {
-		return nil, err
-	}
-
-	thread.ID, err = u.threadRepo.CreateThread(*thread)
+	thread, err := u.threadRepo.CreateThread(thread)
 	if errors.Is(err, customErr.ErrDuplicate) {
 		thread, err := u.threadRepo.FindThreadBySlug(thread.Slug)
 		if err != nil {
@@ -71,10 +62,6 @@ func (u *UseCase) CreateThread(thread *models.Thread) (*models.Thread, error) {
 }
 
 func (u *UseCase) GetForumUsers(forumSlug string, limit int64, since string, desc bool) ([]models.User, error) {
-	_, err := u.forumRepo.CheckForumExists(forumSlug)
-	if err != nil {
-		return nil, err
-	}
 	if limit == 0 {
 		limit = 100
 	}
@@ -89,10 +76,6 @@ func (u *UseCase) GetForumUsers(forumSlug string, limit int64, since string, des
 }
 
 func (u *UseCase) GetForumThreads(forumSlug string, limit int64, since string, desc bool) ([]models.Thread, error) {
-	_, err := u.forumRepo.CheckForumExists(forumSlug)
-	if err != nil {
-		return nil, err
-	}
 	threads, err := u.threadRepo.GetForumThreads(forumSlug, limit, since, desc)
 	if err != nil {
 		return nil, err

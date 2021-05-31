@@ -5,8 +5,8 @@ import (
 	"DBForum/internal/app/httputils"
 	"DBForum/internal/app/models"
 	threadUseCase "DBForum/internal/app/thread/usecase"
-	"encoding/json"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"github.com/pkg/errors"
 	"log"
 	"net/http"
@@ -26,9 +26,9 @@ func NewHandler(useCase threadUseCase.UseCase) *Handlers {
 
 func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var posts []models.Post
-	if err := json.NewDecoder(r.Body).Decode(&posts); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, posts)
+	var posts models.PostList
+	if err := easyjson.UnmarshalFromReader(r.Body, &posts); err != nil {
+		httputils.Respond(w, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
@@ -45,7 +45,7 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": message,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrUserNotFound) {
@@ -53,14 +53,14 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find post author by nickname: " + nick[0],
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrNoParent) {
 		resp := map[string]string{
 			"message": "Parent post was created in another thread",
 		}
-		httputils.Respond(w, http.StatusConflict, resp)
+		httputils.RespondErr(w, http.StatusConflict, resp)
 		return
 	}
 	if err != nil {
@@ -79,7 +79,7 @@ func (h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -93,7 +93,7 @@ func (h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var thread models.Thread
-	if err := json.NewDecoder(r.Body).Decode(&thread); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &thread); err != nil {
 		httputils.Respond(w, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
@@ -107,7 +107,7 @@ func (h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -150,13 +150,14 @@ func (h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 	// Флаг сортировки по убыванию.
 	desc, err := strconv.ParseBool(r.URL.Query().Get("desc"))
 
-	posts, err := h.useCase.GetPosts(idOrSlug, limit, since, sort, desc)
+	var posts models.PostList
+	posts, err = h.useCase.GetPosts(idOrSlug, limit, since, sort, desc)
 
 	if errors.Is(err, customErr.ErrThreadNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -170,7 +171,7 @@ func (h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var vote models.Vote
-	if err := json.NewDecoder(r.Body).Decode(&vote); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, &vote); err != nil {
 		httputils.Respond(w, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
@@ -186,14 +187,14 @@ func (h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrUserNotFound) {
 		resp := map[string]string{
 			"message": "Can't find user by nickname: " + nickname,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {

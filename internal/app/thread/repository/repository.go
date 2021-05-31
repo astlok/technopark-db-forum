@@ -168,24 +168,27 @@ func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string
 	}
 	if since == "" {
 		if desc {
-			err = r.db.Select(&threads, selectThreadsByForumSlugDesc, forumSlug, limit)
+			err = tx.Select(&threads, selectThreadsByForumSlugDesc, forumSlug, limit)
 		} else {
-			err = r.db.Select(&threads, selectThreadsByForumSlug, forumSlug, limit)
+			err = tx.Select(&threads, selectThreadsByForumSlug, forumSlug, limit)
 		}
 	} else {
 		if desc {
-			err = r.db.Select(&threads, selectThreadsByForumSlugSinceDesc, forumSlug, since, limit)
+			err = tx.Select(&threads, selectThreadsByForumSlugSinceDesc, forumSlug, since, limit)
 		} else {
-			err = r.db.Select(&threads, selectThreadsByForumSlugSince, forumSlug, since, limit)
+			err = tx.Select(&threads, selectThreadsByForumSlugSince, forumSlug, since, limit)
 		}
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
+		_ = tx.Rollback()
 		return nil, customErr.ErrThreadNotFound
 	}
 	if err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
+	_ = tx.Commit()
 	return threads, nil
 }
 

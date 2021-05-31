@@ -5,9 +5,9 @@ import (
 	forumUseCase "DBForum/internal/app/forum/usecase"
 	"DBForum/internal/app/httputils"
 	"DBForum/internal/app/models"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"log"
 	"net/http"
 	"strconv"
@@ -26,8 +26,8 @@ func NewHandler(useCase forumUseCase.UseCase) *Handlers {
 func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	forum := &models.Forum{}
-	//easyjson.UnmarshalFromReader(r.Body, forum)
-	if err := json.NewDecoder(r.Body).Decode(forum); err != nil {
+
+	if err := easyjson.UnmarshalFromReader(r.Body, forum); err != nil {
 		log.Println(err)
 		httputils.Respond(w, http.StatusInternalServerError, nil)
 		return
@@ -40,7 +40,7 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find user with nickname: " + nickname,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrDuplicate) {
@@ -63,7 +63,7 @@ func (h *Handlers) Details(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find forum with slug: " + slug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -78,7 +78,7 @@ func (h *Handlers) CreateThread(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	thread := &models.Thread{}
-	if err := json.NewDecoder(r.Body).Decode(thread); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, thread); err != nil {
 		httputils.Respond(w, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
@@ -95,14 +95,14 @@ func (h *Handlers) CreateThread(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message":"Can't find thread author by nickname: " + nickname,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread forum by slug: " + forumSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrDuplicate) {
@@ -127,12 +127,14 @@ func (h *Handlers) GetUsers(w http.ResponseWriter, r *http.Request) {
 	// Флаг сортировки по убыванию.
 	desc, _ := strconv.ParseBool(r.URL.Query().Get("desc"))
 
-	users, err := h.useCase.GetForumUsers(forumSlug, limit, since, desc)
+	var users models.UserList
+	var err error
+	users, err = h.useCase.GetForumUsers(forumSlug, limit, since, desc)
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find forum by slug: " + forumSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -147,7 +149,7 @@ func (h *Handlers) GetUsers(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) GetThreads(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	forumSlug := params["slug"]
-	var threads []models.Thread
+	var threads models.ThreadList
 
 	// максимальное количество возвращаемых записей
 	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
@@ -157,12 +159,13 @@ func (h *Handlers) GetThreads(w http.ResponseWriter, r *http.Request) {
 	// Флаг сортировки по убыванию.
 	desc, _ := strconv.ParseBool(r.URL.Query().Get("desc"))
 
-	threads, err := h.useCase.GetForumThreads(forumSlug, limit, since, desc)
+	var err error
+	threads, err = h.useCase.GetForumThreads(forumSlug, limit, since, desc)
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find forum by slug: " + forumSlug,
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {

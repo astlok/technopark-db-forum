@@ -5,6 +5,9 @@ import (
 )
 
 //easyjson:json
+type ThreadList []Thread
+
+//easyjson:json
 type Thread struct {
 	ID      uint64    `json:"id,omitempty" db:"id"`
 	Title   string    `json:"title,omitempty" db:"title"`

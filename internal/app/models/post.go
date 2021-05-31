@@ -6,6 +6,9 @@ import (
 )
 
 //easyjson:json
+type PostList []Post
+
+//easyjson:json
 type Post struct {
 	ID       uint64        `json:"id,omitempty" db:"id"`
 	Parent   int           `json:"parent" db:"parent"`

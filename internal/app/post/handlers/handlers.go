@@ -5,9 +5,9 @@ import (
 	"DBForum/internal/app/httputils"
 	"DBForum/internal/app/models"
 	postUseCase "DBForum/internal/app/post/usecase"
-	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	"github.com/mailru/easyjson"
 	"log"
 	"net/http"
 	"strconv"
@@ -44,7 +44,7 @@ func (h *Handlers) GetInfo(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find post with id: " + strconv.FormatUint(id, 10),
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
@@ -58,7 +58,7 @@ func (h *Handlers) GetInfo(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) ChangeMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	post := &models.Post{}
-	if err := json.NewDecoder(r.Body).Decode(post); err != nil {
+	if err := easyjson.UnmarshalFromReader(r.Body, post); err != nil {
 		log.Println(err)
 		httputils.Respond(w, http.StatusInternalServerError, post)
 		return
@@ -76,7 +76,7 @@ func (h *Handlers) ChangeMessage(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find post with id: " + strconv.FormatUint(id, 10),
 		}
-		httputils.Respond(w, http.StatusNotFound, resp)
+		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {

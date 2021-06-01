@@ -13,8 +13,8 @@ CREATE UNLOGGED TABLE dbforum.users
     email    CITEXT UNIQUE         NOT NULL
 );
 
-create index gng on dbforum.users (nickname, email);
-create index gng on dbforum.users (email);
+create index user_nickname_idx on dbforum.users (nickname);
+-- create index gng on dbforum.users (email);
 
 
 CREATE UNLOGGED TABLE dbforum.forum
@@ -31,7 +31,7 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index hbh on dbforum.forum (id, slug);
+create index forum_slug_idx on dbforum.forum (slug);
 
 CREATE UNLOGGED TABLE dbforum.thread
 (
@@ -50,11 +50,13 @@ CREATE UNLOGGED TABLE dbforum.thread
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname)
 );
+create index thread_slug_idx on dbforum.thread (forum_slug);
 
-create index uku on dbforum.thread (id, forum_slug, created);
-create index ala on dbforum.thread (id, forum_slug);
-create index lal on dbforum.thread (id, created);
-create index lyl on dbforum.thread (id, slug);
+
+-- create index uku on dbforum.thread (id, forum_slug, created);
+-- create index ala on dbforum.thread (id, forum_slug);
+-- create index lal on dbforum.thread (id, created);
+-- create index lyl on dbforum.thread (id, slug);
 
 
 CREATE UNLOGGED TABLE dbforum.votes
@@ -93,9 +95,9 @@ CREATE UNLOGGED TABLE dbforum.post
     FOREIGN KEY (thread_id)
         REFERENCES dbforum.thread (id)
 );
-create index mem on dbforum.post (id, thread_id);
-create index kek on dbforum.post (id, thread_id, parent, tree);
-create index lul on dbforum.post (tree, id);
+-- create index mem on dbforum.post (id, thread_id);
+-- create index kek on dbforum.post (id, thread_id, parent, tree);
+-- create index lul on dbforum.post (tree, id);
 
 CREATE UNLOGGED TABLE dbforum.forum_users
 (
@@ -112,7 +114,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 
     PRIMARY KEY (nickname, forum_slug)
 );
-create index on dbforum.forum_users (forum_slug, nickname);
+-- create index on dbforum.forum_users (forum_slug, nickname);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$

@@ -32,13 +32,35 @@ func NewRepo(db *pgx.ConnPool) *Repository {
 	}
 }
 
-func (r *Repository) CreateForum(forum *models.Forum)  error {
+func (r *Repository) CreateForum(forum *models.Forum) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
+	rows, err := tx.Query(selectForumBySlug, &forum.Slug)
+	if  err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if rows.Next() {
+		err = rows.Scan(
+			&forum.User,
+			&forum.Title,
+			&forum.Slug,
+			&forum.Posts,
+			&forum.Threads);
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		rows.Close()
+		_ = tx.Rollback()
+		return customErr.ErrDuplicate
+	}
+
+	rows.Close()
 	var nickname string
-	rows, err := tx.Query(selectNicknameByNickname, forum.User)
+	rows, err = tx.Query(selectNicknameByNickname, forum.User)
 	if  err != nil {
 		_ = tx.Rollback()
 		return err

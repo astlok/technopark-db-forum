@@ -1,12 +1,10 @@
 package usecase
 
 import (
-	customErr "DBForum/internal/app/errors"
 	forumRepo "DBForum/internal/app/forum/repository"
 	"DBForum/internal/app/models"
 	threadRepo "DBForum/internal/app/thread/repository"
 	userRepo "DBForum/internal/app/user/repository"
-	"errors"
 )
 
 type UseCase struct {
@@ -25,15 +23,8 @@ func NewUseCase(forumRepo forumRepo.Repository, userRepo userRepo.Repository, th
 
 func (u *UseCase) CreateForum(forum *models.Forum) (*models.Forum, error) {
 	err := u.forumRepo.CreateForum(forum)
-	if errors.Is(err, customErr.ErrDuplicate) {
-		forum, err = u.forumRepo.FindBySlug(forum.Slug)
-		if err != nil {
-			return nil, err
-		}
-		return forum, customErr.ErrDuplicate
-	}
 	if err != nil {
-		return nil, err
+		return forum, err
 	}
 	return forum, nil
 }
@@ -48,15 +39,8 @@ func (u *UseCase) GetInfoBySlug(slug string) (*models.Forum, error) {
 
 func (u *UseCase) CreateThread(thread *models.Thread) (*models.Thread, error) {
 	thread, err := u.threadRepo.CreateThread(thread)
-	if errors.Is(err, customErr.ErrDuplicate) {
-		thread, err := u.threadRepo.FindThreadBySlug(thread.Slug)
-		if err != nil {
-			return nil, err
-		}
-		return thread, customErr.ErrDuplicate
-	}
 	if err != nil {
-		return nil, err
+		return thread, err
 	}
 	return thread, nil
 }

@@ -69,8 +69,34 @@ func (r *Repository) CreateThread(thread *models.Thread) (*models.Thread, error)
 	if err != nil {
 		return nil, err
 	}
+
+	rows, err := tx.Query(selectThreadBySlug, thread.Slug)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if rows.Next() {
+		err = rows.Scan(
+			&thread.ID,
+			&thread.Forum,
+			&thread.Author,
+			&thread.Title,
+			&thread.Message,
+			&thread.Votes,
+			&thread.Slug,
+			&thread.Created)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		_ = tx.Rollback()
+		rows.Close()
+		return thread, customErr.ErrDuplicate
+	}
+	rows.Close()
+
 	var slug string
-	rows, err := tx.Query(selectSlugBySlug, thread.Forum)
+	rows, err = tx.Query(selectSlugBySlug, thread.Forum)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err

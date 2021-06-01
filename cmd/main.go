@@ -57,35 +57,50 @@ func main() {
 
 	router.Use(commonMiddleware)
 	//router.Use(LoggingRequest)
-	forum := router.PathPrefix("/forum").Subrouter()
+	forum := router.PathPrefix("/api/forum").Subrouter()
 
+	//done
 	forum.HandleFunc("/create", forumHandler.Create).Methods(http.MethodPost)
+
 	forum.HandleFunc("/{slug}/details", forumHandler.Details).Methods(http.MethodGet)
+
+	//done
 	forum.HandleFunc("/{slug}/create", forumHandler.CreateThread).Methods(http.MethodPost)
+
 	forum.HandleFunc("/{slug}/users", forumHandler.GetUsers).Methods(http.MethodGet)
+
 	forum.HandleFunc("/{slug}/threads", forumHandler.GetThreads).Methods(http.MethodGet)
 
-	post := router.PathPrefix("/post").Subrouter()
+	post := router.PathPrefix("/api/post").Subrouter()
 
 	post.HandleFunc("/{id:[0-9]+}/details", postHandler.GetInfo).Methods(http.MethodGet)
+
 	post.HandleFunc("/{id:[0-9]+}/details", postHandler.ChangeMessage).Methods(http.MethodPost)
 
-	service := router.PathPrefix("/service").Subrouter()
+	service := router.PathPrefix("/api/service").Subrouter()
 
 	service.HandleFunc("/clear", serviceHandler.ClearDB).Methods(http.MethodPost)
+
 	service.HandleFunc("/status", serviceHandler.Status).Methods(http.MethodGet)
 
-	thread := router.PathPrefix("/thread").Subrouter()
+	thread := router.PathPrefix("/api/thread").Subrouter()
 
 	thread.HandleFunc("/{slug_or_id}/create", threadHandler.CreatePost).Methods(http.MethodPost)
+
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ThreadInfo).Methods(http.MethodGet)
+
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ChangeThread).Methods(http.MethodPost)
+
 	thread.HandleFunc("/{slug_or_id}/posts", threadHandler.GetPosts).Methods(http.MethodGet)
+
 	thread.HandleFunc("/{slug_or_id}/vote", threadHandler.VoteThread).Methods(http.MethodPost)
 
-	user := router.PathPrefix("/user").Subrouter()
+	user := router.PathPrefix("/api/user").Subrouter()
+
 	user.HandleFunc("/{nickname}/create", userHandler.CreateUser).Methods(http.MethodPost)
+
 	user.HandleFunc("/{nickname}/profile", userHandler.GetUserInfo).Methods(http.MethodGet)
+
 	user.HandleFunc("/{nickname}/profile", userHandler.ChangeUser).Methods(http.MethodPost)
 
 	server := &http.Server{

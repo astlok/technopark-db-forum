@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 type Handlers struct {
@@ -49,9 +48,8 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, customErr.ErrUserNotFound) {
-		nick := strings.Split(errors.Unwrap(err).Error(), ":")
 		resp := map[string]string{
-			"message": "Can't find post author by nickname: " + nick[0],
+			"message": "Can't find post author by nickname: ",
 		}
 		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return

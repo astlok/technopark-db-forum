@@ -3,10 +3,7 @@ package repository
 import (
 	customErr "DBForum/internal/app/errors"
 	"DBForum/internal/app/models"
-	"database/sql"
-	"errors"
 	"github.com/jackc/pgx"
-	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -22,32 +19,38 @@ const (
                            )`
 	selectForumBySlug = "SELECT user_nickname, title, slug, posts, threads FROM dbforum.forum WHERE slug = $1"
 
-	selectIDBySlug = "SELECT id FROM dbforum.forum WHERE slug = $1"
-
 	selectNicknameByNickname = "SELECT nickname FROM dbforum.users WHERE nickname = $1"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *pgx.ConnPool
 }
 
-func NewRepo(db *sqlx.DB) *Repository {
+func NewRepo(db *pgx.ConnPool) *Repository {
 	return &Repository{
 		db: db,
 	}
 }
 
 func (r *Repository) CreateForum(forum *models.Forum)  error {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	var nickname string
-	if err := tx.Get(&nickname, selectNicknameByNickname, forum.User); err != nil {
+	rows, err := tx.Query(selectNicknameByNickname, forum.User)
+	if  err != nil {
 		_ = tx.Rollback()
-		if errors.Is(err, sql.ErrNoRows) {
-			return customErr.ErrUserNotFound
-		}
+		return err
+	}
+	if !rows.Next() {
+		_ = tx.Rollback()
+		return customErr.ErrUserNotFound
+	}
+	err = rows.Scan(&nickname);
+	rows.Close()
+	if err != nil {
+		_ = tx.Rollback()
 		return err
 	}
 	forum.User = nickname
@@ -68,6 +71,7 @@ func (r *Repository) CreateForum(forum *models.Forum)  error {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
 	return nil
@@ -75,22 +79,38 @@ func (r *Repository) CreateForum(forum *models.Forum)  error {
 
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	forum := models.Forum{}
-	if err := r.db.Get(&forum, selectForumBySlug, slug); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrForumNotFound
-		}
+	rows, err := r.db.Query(selectForumBySlug, slug)
+	if  err != nil {
+		return nil, err
+	}
+	if !rows.Next() {
+		return nil, customErr.ErrForumNotFound
+	}
+	err = rows.Scan(
+		&forum.User,
+		&forum.Title,
+		&forum.Slug,
+		&forum.Posts,
+		&forum.Threads);
+	rows.Close()
+	if err != nil {
 		return nil, err
 	}
 	return &forum, nil
 }
 
-func (r *Repository) CheckForumExists(forumSlug string) (uint64, error) {
-	var forumID uint64
-	if err := r.db.Get(&forumID, selectIDBySlug, forumSlug); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, customErr.ErrForumNotFound
-		}
-		return 0, err
+func (r *Repository) Prepare() error {
+	_, err := r.db.Prepare("insertForum", insertForum)
+	if err != nil {
+		return err
 	}
-	return forumID, nil
+	_, err = r.db.Prepare("selectForumBySlug", selectForumBySlug)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Prepare("selectNicknameByNickname", selectNicknameByNickname)
+	if err != nil {
+		return err
+	}
+	return nil
 }

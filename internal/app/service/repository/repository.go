@@ -2,21 +2,21 @@ package repository
 
 import (
 	"DBForum/internal/app/models"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *pgx.ConnPool
 }
 
-func NewRepo(db *sqlx.DB) *Repository {
+func NewRepo(db *pgx.ConnPool) *Repository {
 	return &Repository{
 		db: db,
 	}
 }
 
 func (r *Repository) ClearDB() error {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
@@ -40,14 +40,14 @@ func (r *Repository) ClearDB() error {
 
 func (r *Repository) Status() (models.NumRecords, error) {
 	var numRec models.NumRecords
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.NumRecords{}, err
 	}
-	err = tx.Get(&numRec.Post, "SELECT COUNT(*) as post_count FROM dbforum.post")
-	err = tx.Get(&numRec.User, "SELECT COUNT(*) as user_count FROM dbforum.users")
-	err = tx.Get(&numRec.Forum, "SELECT COUNT(*) as forum_count FROM dbforum.forum")
-	err = tx.Get(&numRec.Thread, "SELECT COUNT(*) as thread_count FROM dbforum.thread")
+	err = tx.QueryRow("SELECT COUNT(*) as post_count FROM dbforum.post").Scan(&numRec.Post)
+	err = tx.QueryRow("SELECT COUNT(*) as user_count FROM dbforum.users").Scan(&numRec.User)
+	err = tx.QueryRow("SELECT COUNT(*) as forum_count FROM dbforum.forum").Scan(&numRec.Forum)
+	err = tx.QueryRow("SELECT COUNT(*) as thread_count FROM dbforum.thread").Scan(&numRec.Thread)
 	if err != nil {
 		_ = tx.Rollback()
 		return models.NumRecords{}, err

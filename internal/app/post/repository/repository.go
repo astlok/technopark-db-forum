@@ -4,7 +4,7 @@ import (
 	customErr "DBForum/internal/app/errors"
 	"DBForum/internal/app/models"
 	"database/sql"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
 )
@@ -30,36 +30,52 @@ const (
 	selectPostByID = "SELECT * FROM dbforum.post WHERE id=$1"
 
 	updatePost = `UPDATE dbforum.post SET
-					message=:message,
-                    is_edited=:is_edited
-					WHERE id=:id`
+					message=$1,
+                    is_edited=$2
+					WHERE id=$3`
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *pgx.ConnPool
 }
 
-func NewRepo(db *sqlx.DB) *Repository {
+func NewRepo(db *pgx.ConnPool) *Repository {
 	return &Repository{
 		db: db,
 	}
 }
 
 func (r *Repository) CreatePost(idOrSlug string, post models.Post) (models.Post, error) {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.Post{}, err
 	}
 	var threadID uint64
 	if threadID, err = strconv.ParseUint(idOrSlug, 10, 64); err != nil {
-		err = tx.Get(&post, "SELECT id as thread_id, forum_slug FROM dbforum.thread WHERE slug=$1 LIMIT 1", idOrSlug)
+		rows, err := tx.Query("SELECT id as thread_id, forum_slug FROM dbforum.thread WHERE slug=$1 LIMIT 1", idOrSlug)
+		if err != nil {
+			_ = tx.Rollback()
+			return models.Post{}, err
+		}
+		if !rows.Next() {
+			_ = tx.Rollback()
+			return models.Post{}, customErr.ErrThreadNotFound
+		}
+		err = rows.Scan(&post.Thread, &post.Forum)
+		rows.Close()
 	} else {
 		post.Thread = threadID
-		err = tx.Get(&post, "SELECT forum_slug FROM dbforum.thread WHERE id=$1 LIMIT 1", threadID)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		_ = tx.Rollback()
-		return models.Post{}, customErr.ErrThreadNotFound
+		rows, err := tx.Query("SELECT forum_slug FROM dbforum.thread WHERE id=$1 LIMIT 1", threadID)
+		if err != nil {
+			_ = tx.Rollback()
+			return models.Post{}, err
+		}
+		if !rows.Next() {
+			_ = tx.Rollback()
+			return models.Post{}, customErr.ErrThreadNotFound
+		}
+		err = rows.Scan(&post.Forum)
+		rows.Close()
 	}
 	if post.Author != "" {
 		row, err := tx.Query("SELECT 1 FROM dbforum.users WHERE nickname=$1 LIMIT 1", post.Author)
@@ -71,10 +87,7 @@ func (r *Repository) CreatePost(idOrSlug string, post models.Post) (models.Post,
 			_ = tx.Rollback()
 			return models.Post{}, errors.Wrap(customErr.ErrUserNotFound, post.Author)
 		}
-		if err := row.Close(); err != nil {
-			_ = tx.Rollback()
-			return models.Post{}, err
-		}
+		row.Close()
 	} else {
 		_ = tx.Rollback()
 		return models.Post{}, nil
@@ -91,12 +104,9 @@ func (r *Repository) CreatePost(idOrSlug string, post models.Post) (models.Post,
 			return models.Post{}, customErr.ErrNoParent
 		}
 		err = row.Scan(&post.Tree)
-		if err := row.Close(); err != nil {
-			_ = tx.Rollback()
-			return models.Post{}, err
-		}
+		row.Close()
 	}
-	err = tx.QueryRowx(
+	err = tx.QueryRow(
 		insertPost,
 		post.Author,
 		post.Forum,
@@ -119,7 +129,7 @@ func (r *Repository) CreatePost(idOrSlug string, post models.Post) (models.Post,
 
 func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bool, sort string) ([]models.Post, error) {
 	var posts []models.Post
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +149,7 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 			_ = tx.Rollback()
 			return nil, err
 		}
-		if err := rows.Close(); err != nil {
-			_ = tx.Rollback()
-			return nil, err
-		}
+		rows.Close()
 	} else {
 		rows, err := tx.Query("SELECT 1 FROM dbforum.thread WHERE id=$1 LIMIT 1", threadID)
 		if err != nil {
@@ -153,22 +160,20 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 			_ = tx.Rollback()
 			return nil, customErr.ErrThreadNotFound
 		}
-		if err := rows.Close(); err != nil {
-			_ = tx.Rollback()
-			return nil, err
-		}
+		rows.Close()
 	}
 
+	var rows *pgx.Rows
 	if desc {
 		switch sort {
 		case "flat":
-			err = tx.Select(&posts, selectByThreadIDFlatDesc, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDFlatDesc, threadID, since, limit)
 		case "tree":
-			err = tx.Select(&posts, selectByThreadIDTreeDesc, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDTreeDesc, threadID, since, limit)
 		case "parent_tree":
-			err = tx.Select(&posts, selectByThreadIDParentTreeDesc, threadID, limit, since)
+			rows, err = tx.Query(selectByThreadIDParentTreeDesc, threadID, limit, since)
 		default:
-			err = tx.Select(&posts, selectByThreadIDFlatDesc, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDFlatDesc, threadID, since, limit)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -181,13 +186,13 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 	} else {
 		switch sort {
 		case "flat":
-			err = tx.Select(&posts, selectByThreadIDFlat, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDFlat, threadID, since, limit)
 		case "tree":
-			err = tx.Select(&posts, selectByThreadIDTree, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDTree, threadID, since, limit)
 		case "parent_tree":
-			err = tx.Select(&posts, selectByThreadIDParentTree, threadID, limit, since)
+			rows, err = tx.Query(selectByThreadIDParentTree, threadID, limit, since)
 		default:
-			err = tx.Select(&posts, selectByThreadIDFlat, threadID, since, limit)
+			rows, err = tx.Query(selectByThreadIDFlat, threadID, since, limit)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -198,6 +203,25 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 			return nil, err
 		}
 	}
+	for rows.Next() {
+		p := models.Post{}
+		err := rows.Scan(
+			&p.ID,
+			&p.Author,
+			&p.Forum,
+			&p.Thread,
+			&p.Message,
+			&p.Parent,
+			&p.IsEdited,
+			&p.Created,
+			&p.Tree)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	rows.Close()
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -207,17 +231,32 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 
 func (r *Repository) GetPostByID(id uint64) (*models.Post, error) {
 	post := models.Post{}
-	if err := r.db.Get(&post, selectPostByID, id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrPostNotFound
-		}
+	rows, err := r.db.Query(selectPostByID, id)
+	if err != nil {
+		return nil, err
+	}
+	if !rows.Next() {
+		return nil, customErr.ErrPostNotFound
+	}
+	err = rows.Scan(
+		&post.ID,
+		&post.Author,
+		&post.Forum,
+		&post.Thread,
+		&post.Message,
+		&post.Parent,
+		&post.IsEdited,
+		&post.Created,
+		&post.Tree)
+	rows.Close()
+	if err != nil {
 		return nil, err
 	}
 	return &post, nil
 }
 
 func (r *Repository) ChangePost(post *models.Post) error {
-	_, err := r.db.NamedExec(updatePost, &post)
+	_, err := r.db.Exec(updatePost, &post.Message, &post.IsEdited, &post.ID)
 	if err != nil {
 		return err
 	}

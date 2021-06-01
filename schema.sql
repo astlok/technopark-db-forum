@@ -1,8 +1,9 @@
+ALTER USER postgres WITH ENCRYPTED PASSWORD 'admin';
 DROP SCHEMA IF EXISTS dbforum CASCADE;
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE SCHEMA dbforum;
 
-CREATE TABLE dbforum.users
+CREATE UNLOGGED TABLE dbforum.users
 (
     id       BIGSERIAL PRIMARY KEY NOT NULL,
 
@@ -12,11 +13,11 @@ CREATE TABLE dbforum.users
     email    CITEXT UNIQUE         NOT NULL
 );
 
-create index on dbforum.users (nickname, email);
-create index on dbforum.users (email);
+create index gng on dbforum.users (nickname, email);
+create index gng on dbforum.users (email);
 
 
-CREATE TABLE dbforum.forum
+CREATE UNLOGGED TABLE dbforum.forum
 (
     id            BIGSERIAL PRIMARY KEY NOT NULL,
     user_nickname CITEXT                NOT NULL,
@@ -30,9 +31,9 @@ CREATE TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index on dbforum.forum (id, slug);
+create index hbh on dbforum.forum (id, slug);
 
-CREATE TABLE dbforum.thread
+CREATE UNLOGGED TABLE dbforum.thread
 (
     id              BIGSERIAL PRIMARY KEY    NOT NULL,
     forum_slug      CITEXT                   NOT NULL,
@@ -50,26 +51,13 @@ CREATE TABLE dbforum.thread
         REFERENCES dbforum.users (nickname)
 );
 
-create index on dbforum.thread (id, forum_slug, created);
-create index on dbforum.thread (id, forum_slug);
-create index on dbforum.thread (id, created);
-create index on dbforum.thread (id, slug);
+create index uku on dbforum.thread (id, forum_slug, created);
+create index ala on dbforum.thread (id, forum_slug);
+create index lal on dbforum.thread (id, created);
+create index lyl on dbforum.thread (id, slug);
 
 
--- CREATE UNIQUE INDEX slug_unique ON dbforum.thread (id, forum_slug, author_nickname, title, message, (slug IS NULL), created)  WHERE slug IS NULL;
-
--- SELECT id,
---        forum_slug,
---        author_nickname,
---        title,
---        message,
---        votes,
---        cast(slug as text),
---        created
--- from dbforum.thread
--- WHERE id = 25;
-
-CREATE TABLE dbforum.votes
+CREATE UNLOGGED TABLE dbforum.votes
 (
     nickname  CITEXT        NOT NULL,
     voice     INT DEFAULT 0 NOT NULL,
@@ -82,10 +70,10 @@ CREATE TABLE dbforum.votes
         REFERENCES dbforum.thread (id)
 );
 
-create index on dbforum.votes (thread_id, nickname);
+create index xax on dbforum.votes (thread_id, nickname);
 
 
-CREATE TABLE dbforum.post
+CREATE UNLOGGED TABLE dbforum.post
 (
     id              BIGSERIAL PRIMARY KEY               NOT NULL,
     author_nickname CITEXT                              NOT NULL,
@@ -106,20 +94,10 @@ CREATE TABLE dbforum.post
         REFERENCES dbforum.thread (id)
 );
 create index mem on dbforum.post (id, thread_id);
+create index kek on dbforum.post (id, thread_id, parent, tree);
+create index lul on dbforum.post (tree, id);
 
-
-explain SELECT *
-FROM dbforum.post
-WHERE tree[1] IN (SELECT id
-                  FROM dbforum.post
-                  WHERE thread_id = 7834
-                    AND parent = 0
-                    AND CASE WHEN 0 > 0 THEN tree[1] > (SELECT tree[1] FROM dbforum.post WHERE id = 1157034) ELSE TRUE END
-                  ORDER BY id
-                  LIMIT 150)
-ORDER BY tree, id;
-
-CREATE TABLE dbforum.forum_users
+CREATE UNLOGGED TABLE dbforum.forum_users
 (
     forum_slug CITEXT NOT NULL,
     nickname   CITEXT NOT NULL,
@@ -194,14 +172,14 @@ CREATE TRIGGER post_insert_forum_usert
     FOR EACH ROW
 EXECUTE FUNCTION dbforum.insert_forum_user();
 
-SELECT fu.nickname, fu.fullname, fu.about, fu.email
-FROM dbforum.forum_users AS fu
-WHERE fu.forum_slug = '_K3It22LZYajS'
-  AND CASE
-          WHEN 'T936wuu3eXl5P.bill' != '' and 'T936wuu3eXl5P.bill' IS NOT NULL THEN fu.nickname > 'T936wuu3eXl5P.bill'
-          ELSE TRUE END
-ORDER BY fu.nickname
-LIMIT 4
+-- SELECT fu.nickname, fu.fullname, fu.about, fu.email
+-- FROM dbforum.forum_users AS fu
+-- WHERE fu.forum_slug = '_K3It22LZYajS'
+--   AND CASE
+--           WHEN 'T936wuu3eXl5P.bill' != '' and 'T936wuu3eXl5P.bill' IS NOT NULL THEN fu.nickname > 'T936wuu3eXl5P.bill'
+--           ELSE TRUE END
+-- ORDER BY fu.nickname
+-- LIMIT 4
 
 -- SELECT *
 -- FROM dbforum.post

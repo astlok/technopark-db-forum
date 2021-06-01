@@ -5,7 +5,6 @@ import (
 	"DBForum/internal/app/models"
 	"database/sql"
 	"github.com/jackc/pgx"
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
@@ -45,47 +44,36 @@ const (
 							   email
                            ) 
                            VALUES (
-                                   :nickname,
-                                   :fullname,
-                                   :about,
-                                   :email)`
+                                   $1,
+                                   $2,
+                                   $3,
+                                   $4)`
 
 	selectUsersByNickAndEmail = "SELECT nickname, fullname, about, email FROM dbforum.users WHERE nickname = $1 OR email = $2"
 
 	selectByNickname = "SELECT nickname, fullname, about, email FROM dbforum.users WHERE nickname = $1"
 
 	updateUser = `UPDATE dbforum.users SET 
-							 fullname=:fullname,
-							 about=:about,
-							 email=:email
-                         WHERE nickname=:nickname`
+							 fullname=$1,
+							 about=$2,
+							 email=$3
+                         WHERE nickname=$4`
 
 	selectNickByEmail = "SELECT nickname FROM dbforum.users WHERE email = $1"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *pgx.ConnPool
 }
 
-func NewRepo(db *sqlx.DB) *Repository {
+func NewRepo(db *pgx.ConnPool) *Repository {
 	return &Repository{
 		db: db,
 	}
 }
 
-func (r *Repository) CheckUserExists(nickname string) (uint64, error) {
-	var userID uint64
-	if err := r.db.Get(&userID, selectIDByNickname, nickname); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, customErr.ErrUserNotFound
-		}
-		return 0, err
-	}
-	return userID, nil
-}
-
 func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, desc bool) ([]models.User, error) {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
 	}
@@ -99,21 +87,18 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 		_ = tx.Rollback()
 		return nil, customErr.ErrForumNotFound
 	}
-	if err = row.Close(); err != nil {
-		_ = tx.Rollback()
-		return nil, err
-	}
+	row.Close()
 	if since == "" {
 		if desc {
-			err = r.db.Select(&users, selectUsersByForumSlugDesc, forumSlug, limit)
+			row, err = r.db.Query(selectUsersByForumSlugDesc, forumSlug, limit)
 		} else {
-			err = r.db.Select(&users, selectUsersByForumSlug, forumSlug, limit)
+			row, err = r.db.Query(selectUsersByForumSlug, forumSlug, limit)
 		}
 	} else {
 		if desc {
-			err = r.db.Select(&users, selectUsersByForumSlugSinceDesc, forumSlug, since, limit)
+			row, err = r.db.Query(selectUsersByForumSlugSinceDesc, forumSlug, since, limit)
 		} else {
-			err = r.db.Select(&users, selectUsersByForumSlugSince, forumSlug, since, limit)
+			row, err = r.db.Query(selectUsersByForumSlugSince, forumSlug, since, limit)
 		}
 	}
 
@@ -125,6 +110,20 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 		_ = tx.Rollback()
 		return nil, err
 	}
+	for row.Next() {
+		u := models.User{}
+		err := row.Scan(
+			&u.Nickname,
+			&u.Fullname,
+			&u.About,
+			&u.Email)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	row.Close()
 	if err = tx.Commit(); err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -133,7 +132,7 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 }
 
 func (r *Repository) CreateUser(user models.User) error {
-	_, err := r.db.NamedExec(insertUser, &user)
+	_, err := r.db.Exec(insertUser, &user.Nickname, &user.Fullname, &user.About, &user.Email)
 	if driverErr, ok := err.(pgx.PgError); ok {
 		if driverErr.Code == "23505" {
 			return customErr.ErrDuplicate
@@ -147,35 +146,69 @@ func (r *Repository) CreateUser(user models.User) error {
 
 func (r *Repository) GetUsersByNickAndEmail(nickname string, email string) ([]models.User, error) {
 	var users []models.User
-	err := r.db.Select(&users, selectUsersByNickAndEmail, nickname, email)
+	rows, err := r.db.Query(selectUsersByNickAndEmail, nickname, email)
 	if err != nil {
 		return nil, err
 	}
+	for rows.Next() {
+		u := models.User{}
+		err := rows.Scan(
+			&u.Nickname,
+			&u.Fullname,
+			&u.About,
+			&u.Email)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	rows.Close()
 	return users, nil
 }
 
 func (r *Repository) GetUserByNick(nickname string) (*models.User, error) {
 	var user models.User
-	if err := r.db.Get(&user, selectByNickname, nickname); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrUserNotFound
-		}
+	rows, err := r.db.Query(selectByNickname, nickname)
+	if err != nil {
 		return nil, err
 	}
+	if !rows.Next() {
+		return nil, customErr.ErrUserNotFound
+	}
+	err = rows.Scan(
+		&user.Nickname,
+		&user.Fullname,
+		&user.About,
+		&user.Email)
+	if err != nil {
+		return nil, err
+	}
+	rows.Close()
 	return &user, nil
 }
 
 func (r *Repository) ChangeUser(user *models.User) error {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	var oldUser models.User
-	if err := tx.Get(&oldUser, selectByNickname, user.Nickname); err != nil {
+	rows, err := tx.Query(selectByNickname, user.Nickname)
+	if err != nil {
 		_ = tx.Rollback()
-		if errors.Is(err, sql.ErrNoRows) {
-			return customErr.ErrUserNotFound
-		}
+		return err
+	}
+	if !rows.Next() {
+		_ = tx.Rollback()
+		return customErr.ErrUserNotFound
+	}
+	err = rows.Scan(
+		&oldUser.Nickname,
+		&oldUser.Fullname,
+		&oldUser.About,
+		&oldUser.Email)
+	rows.Close()
+	if err != nil {
 		return err
 	}
 	if user.Fullname == "" {
@@ -187,7 +220,7 @@ func (r *Repository) ChangeUser(user *models.User) error {
 	if user.Email == "" {
 		user.Email = oldUser.Email
 	}
-	_, err = tx.NamedExec(updateUser, &user)
+	_, err = tx.Exec(updateUser, &user.Fullname, &user.About, &user.Email, &user.Nickname)
 	if driverErr, ok := err.(pgx.PgError); ok {
 		if driverErr.Code == "23505" {
 			_ = tx.Rollback()
@@ -199,6 +232,7 @@ func (r *Repository) ChangeUser(user *models.User) error {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
 	return nil
@@ -206,10 +240,18 @@ func (r *Repository) ChangeUser(user *models.User) error {
 
 func (r *Repository) GetUserNickByEmail(email string) (string, error) {
 	var nickname string
-	if err := r.db.Get(&nickname, selectNickByEmail, email); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", customErr.ErrUserNotFound
-		}
+	rows, err := r.db.Query(selectNickByEmail, email)
+	if err != nil {
+		rows.Close()
+		return "", err
+	}
+	if !rows.Next() {
+		rows.Close()
+		return "", customErr.ErrUserNotFound
+	}
+	err = rows.Scan(&nickname)
+	rows.Close()
+	if err != nil {
 		return "", err
 	}
 	return nickname, nil

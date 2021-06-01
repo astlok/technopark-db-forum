@@ -3,10 +3,7 @@ package repository
 import (
 	customErr "DBForum/internal/app/errors"
 	"DBForum/internal/app/models"
-	"database/sql"
-	"errors"
 	"github.com/jackc/pgx"
-	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -38,15 +35,9 @@ const (
 
 	selectThreadByID = "SELECT id, forum_slug, author_nickname, title, message, votes, COALESCE(slug,'') as slug, created from dbforum.thread WHERE id = $1"
 
-	updateThreadBySlug = `UPDATE dbforum.thread SET 
-							 title=:title,
-							 message=:message
-                         WHERE slug=:slug`
+	updateThreadBySlug = "UPDATE dbforum.thread SET title=$1, message=$2 WHERE slug=$3"
 
-	updateThreadByID = `UPDATE dbforum.thread SET 
-							 title=:title,
-							 message=:message
-                         WHERE id=:id`
+	updateThreadByID = "UPDATE dbforum.thread SET title=$1, message=$2 WHERE id=$3"
 
 	selectVoteInfo = "SELECT nickname, voice FROM dbforum.votes WHERE thread_id = $1 AND nickname = $2"
 
@@ -64,42 +55,58 @@ const (
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *pgx.ConnPool
 }
 
-func NewRepo(db *sqlx.DB) *Repository {
+func NewRepo(db *pgx.ConnPool) *Repository {
 	return &Repository{
 		db: db,
 	}
 }
 
 func (r *Repository) CreateThread(thread *models.Thread) (*models.Thread, error) {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
 	}
 	var slug string
-	if err := tx.Get(&slug, selectSlugBySlug, thread.Forum); err != nil {
+	rows, err := tx.Query(selectSlugBySlug, thread.Forum)
+	if err != nil {
 		_ = tx.Rollback()
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrForumNotFound
-		}
 		return nil, err
 	}
+	if !rows.Next() {
+		_ = tx.Rollback()
+		return nil, customErr.ErrForumNotFound
+	}
+	err = rows.Scan(&slug)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	rows.Close()
 	thread.Forum = slug
 
 	var nickname string
-	if err := tx.Get(&nickname, selectNicknameByNickname, thread.Author); err != nil {
+	rows, err = tx.Query(selectNicknameByNickname, thread.Author)
+	if err != nil {
 		_ = tx.Rollback()
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrUserNotFound
-		}
 		return nil, err
 	}
+	if !rows.Next() {
+		_ = tx.Rollback()
+		return nil, customErr.ErrUserNotFound
+	}
+	err = rows.Scan(&nickname)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	rows.Close()
 
 	thread.Author = nickname
 
-	err = tx.QueryRowx(
+	err = tx.QueryRow(
 		insertThread,
 		thread.Forum,
 		thread.Author,
@@ -127,28 +134,56 @@ func (r *Repository) CreateThread(thread *models.Thread) (*models.Thread, error)
 
 func (r *Repository) FindThreadBySlug(threadSlug string) (*models.Thread, error) {
 	thread := models.Thread{}
-	if err := r.db.Get(&thread, selectThreadBySlug, threadSlug); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrForumNotFound
-		}
+	rows, err := r.db.Query(selectThreadBySlug, threadSlug)
+	if err != nil {
 		return nil, err
 	}
+	if !rows.Next() {
+		return nil, customErr.ErrForumNotFound
+	}
+	err = rows.Scan(
+		&thread.ID,
+		&thread.Forum,
+		&thread.Author,
+		&thread.Title,
+		&thread.Message,
+		&thread.Votes,
+		&thread.Slug,
+		&thread.Created)
+	if err != nil {
+		return nil, err
+	}
+	rows.Close()
 	return &thread, nil
 }
 
 func (r *Repository) FindThreadByID(id uint64) (*models.Thread, error) {
 	thread := models.Thread{}
-	if err := r.db.Get(&thread, selectThreadByID, id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, customErr.ErrForumNotFound
-		}
+	rows, err := r.db.Query(selectThreadByID, id)
+	if err != nil {
 		return nil, err
 	}
+	if !rows.Next() {
+		return nil, customErr.ErrForumNotFound
+	}
+	err = rows.Scan(
+		&thread.ID,
+		&thread.Forum,
+		&thread.Author,
+		&thread.Title,
+		&thread.Message,
+		&thread.Votes,
+		&thread.Slug,
+		&thread.Created)
+	if err != nil {
+		return nil, err
+	}
+	rows.Close()
 	return &thread, nil
 }
 
 func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string, desc bool) ([]models.Thread, error) {
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
 	}
@@ -162,31 +197,45 @@ func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string
 		_ = tx.Rollback()
 		return nil, customErr.ErrForumNotFound
 	}
-	if err = row.Close(); err != nil {
-		_ = tx.Rollback()
-		return nil, err
-	}
+	row.Close()
 	if since == "" {
 		if desc {
-			err = tx.Select(&threads, selectThreadsByForumSlugDesc, forumSlug, limit)
+			row, err = tx.Query(selectThreadsByForumSlugDesc, forumSlug, limit)
 		} else {
-			err = tx.Select(&threads, selectThreadsByForumSlug, forumSlug, limit)
+			row, err = tx.Query(selectThreadsByForumSlug, forumSlug, limit)
 		}
 	} else {
 		if desc {
-			err = tx.Select(&threads, selectThreadsByForumSlugSinceDesc, forumSlug, since, limit)
+			row, err = tx.Query(selectThreadsByForumSlugSinceDesc, forumSlug, since, limit)
 		} else {
-			err = tx.Select(&threads, selectThreadsByForumSlugSince, forumSlug, since, limit)
+			row, err = tx.Query(selectThreadsByForumSlugSince, forumSlug, since, limit)
 		}
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		_ = tx.Rollback()
-		return nil, customErr.ErrThreadNotFound
 	}
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
+	}
+	for row.Next() {
+		th := models.Thread{}
+		err := row.Scan(
+			&th.ID,
+			&th.Forum,
+			&th.Author,
+			&th.Title,
+			&th.Message,
+			&th.Votes,
+			&th.Slug,
+			&th.Created)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		threads = append(threads, th)
+	}
+	row.Close()
+	if threads == nil {
+		_ = tx.Rollback()
+		return nil, nil
 	}
 	_ = tx.Commit()
 	return threads, nil
@@ -194,14 +243,34 @@ func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string
 
 func (r *Repository) UpdateThreadBySlug(threadSlug string, thread models.Thread) (models.Thread, error) {
 	var oldThread models.Thread
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.Thread{}, err
 	}
-	err = tx.Get(&oldThread, selectThreadBySlug, threadSlug)
+	rows, err := tx.Query(selectThreadBySlug, threadSlug)
 	if err != nil {
 		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	if rows.Next() {
+		err = rows.Scan(
+			&oldThread.ID,
+			&oldThread.Forum,
+			&oldThread.Author,
+			&oldThread.Title,
+			&oldThread.Message,
+			&oldThread.Votes,
+			&oldThread.Slug,
+			&oldThread.Created)
+	} else {
+		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrThreadNotFound
+	}
+	rows.Close()
+
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
 	}
 	if thread.Message != "" {
 		oldThread.Message = thread.Message
@@ -209,7 +278,7 @@ func (r *Repository) UpdateThreadBySlug(threadSlug string, thread models.Thread)
 	if thread.Title != "" {
 		oldThread.Title = thread.Title
 	}
-	_, err = tx.NamedExec(updateThreadBySlug, oldThread)
+	_, err = tx.Exec(updateThreadBySlug, &oldThread.Title, &oldThread.Message, &oldThread.Slug)
 	if err != nil {
 		_ = tx.Rollback()
 		return models.Thread{}, err
@@ -223,14 +292,32 @@ func (r *Repository) UpdateThreadBySlug(threadSlug string, thread models.Thread)
 
 func (r *Repository) UpdateThreadByID(threadID uint64, thread models.Thread) (models.Thread, error) {
 	var oldThread models.Thread
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.Thread{}, err
 	}
-	err = tx.Get(&oldThread, selectThreadByID, threadID)
+	rows, err := tx.Query(selectThreadByID, threadID)
 	if err != nil {
 		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	if !rows.Next() {
+		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrThreadNotFound
+	}
+	err = rows.Scan(
+		&oldThread.ID,
+		&oldThread.Forum,
+		&oldThread.Author,
+		&oldThread.Title,
+		&oldThread.Message,
+		&oldThread.Votes,
+		&oldThread.Slug,
+		&oldThread.Created)
+	rows.Close()
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
 	}
 	if thread.Message != "" {
 		oldThread.Message = thread.Message
@@ -238,7 +325,7 @@ func (r *Repository) UpdateThreadByID(threadID uint64, thread models.Thread) (mo
 	if thread.Title != "" {
 		oldThread.Title = thread.Title
 	}
-	_, err = tx.NamedExec(updateThreadByID, oldThread)
+	_, err = tx.Exec(updateThreadByID, &oldThread.Title, &oldThread.Message, &oldThread.ID)
 	if err != nil {
 		_ = tx.Rollback()
 		return models.Thread{}, err
@@ -252,15 +339,33 @@ func (r *Repository) UpdateThreadByID(threadID uint64, thread models.Thread) (mo
 
 func (r *Repository) VoteThreadBySlug(slug string, vote models.Vote) (models.Thread, error) {
 	var thread models.Thread
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.Thread{}, err
 	}
-	err = tx.Get(&thread, selectThreadBySlug, slug)
-	if errors.Is(err, sql.ErrNoRows) {
+	rows, err := tx.Query(selectThreadBySlug, slug)
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	if !rows.Next() {
 		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrThreadNotFound
 	}
+	err = rows.Scan(
+		&thread.ID,
+		&thread.Forum,
+		&thread.Author,
+		&thread.Title,
+		&thread.Message,
+		&thread.Votes,
+		&thread.Slug,
+		&thread.Created)
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	rows.Close()
 	row, err := tx.Query("SELECT 1 FROM dbforum.users WHERE nickname=$1 LIMIT 1", vote.Nickname)
 	if err != nil {
 		_ = tx.Rollback()
@@ -270,27 +375,36 @@ func (r *Repository) VoteThreadBySlug(slug string, vote models.Vote) (models.Thr
 		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrUserNotFound
 	}
-	if err := row.Close(); err != nil {
+	row.Close()
+	curVote := models.Vote{}
+	rows, err = tx.Query(selectVoteInfo, thread.ID, vote.Nickname)
+	if err != nil {
+
 		_ = tx.Rollback()
 		return models.Thread{}, err
 	}
-	curVote := models.Vote{}
-	err = tx.Get(&curVote, selectVoteInfo, thread.ID, vote.Nickname)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			thread.Votes += vote.Voice
-			_, err = tx.Exec(updateThreadVoteBySlug, thread.Votes, slug)
-			_, err = tx.Exec(intertVote, vote.Nickname, vote.Voice, thread.ID)
-			if err != nil {
-				_ = tx.Rollback()
-				return models.Thread{}, err
-			}
-			if err := tx.Commit(); err != nil {
-				_ = tx.Rollback()
-				return models.Thread{}, err
-			}
-			return thread, nil
+	if !rows.Next() {
+		thread.Votes += vote.Voice
+		_, err = tx.Exec(updateThreadVoteBySlug, thread.Votes, slug)
+		_, err = tx.Exec(intertVote, vote.Nickname, vote.Voice, thread.ID)
+		if err != nil {
+			rows.Close()
+			_ = tx.Rollback()
+			return models.Thread{}, err
 		}
+		if err := tx.Commit(); err != nil {
+			rows.Close()
+			_ = tx.Rollback()
+			return models.Thread{}, err
+		}
+		rows.Close()
+		return thread, nil
+	}
+	err = rows.Scan(
+		&curVote.Nickname,
+		&curVote.Voice)
+	rows.Close()
+	if err != nil {
 		_ = tx.Rollback()
 		return models.Thread{}, err
 	}
@@ -315,14 +429,32 @@ func (r *Repository) VoteThreadBySlug(slug string, vote models.Vote) (models.Thr
 
 func (r *Repository) VoteThreadByID(id uint64, vote models.Vote) (models.Thread, error) {
 	var thread models.Thread
-	tx, err := r.db.Beginx()
+	tx, err := r.db.Begin()
 	if err != nil {
 		return models.Thread{}, err
 	}
-	err = tx.Get(&thread, selectThreadByID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	rows, err := tx.Query(selectThreadByID, id)
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	if !rows.Next() {
 		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrThreadNotFound
+	}
+	err = rows.Scan(
+		&thread.ID,
+		&thread.Forum,
+		&thread.Author,
+		&thread.Title,
+		&thread.Message,
+		&thread.Votes,
+		&thread.Slug,
+		&thread.Created)
+	rows.Close()
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
 	}
 	row, err := tx.Query("SELECT 1 FROM dbforum.users WHERE nickname=$1 LIMIT 1", vote.Nickname)
 	if err != nil {
@@ -333,34 +465,41 @@ func (r *Repository) VoteThreadByID(id uint64, vote models.Vote) (models.Thread,
 		_ = tx.Rollback()
 		return models.Thread{}, customErr.ErrUserNotFound
 	}
-	if err := row.Close(); err != nil {
-		_ = tx.Rollback()
-		return models.Thread{}, err
-	}
+	row.Close()
 	curVote := models.Vote{}
-	err = tx.Get(&curVote, selectVoteInfo, thread.ID, vote.Nickname)
+	rows, err = tx.Query(selectVoteInfo, thread.ID, vote.Nickname)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			thread.Votes += vote.Voice
-			_, err = tx.Exec(updateThreadVoteByID, thread.Votes, id)
-			if err != nil {
-				_ = tx.Rollback()
-				return models.Thread{}, err
-			}
-			_, err = tx.Exec(intertVote, vote.Nickname, vote.Voice, thread.ID)
-			if err != nil {
-				_ = tx.Rollback()
-				return models.Thread{}, err
-			}
-			if err := tx.Commit(); err != nil {
-				_ = tx.Rollback()
-				return models.Thread{}, err
-			}
-			return thread, nil
-		}
+
 		_ = tx.Rollback()
 		return models.Thread{}, err
 	}
+	if !rows.Next() {
+		thread.Votes += vote.Voice
+		_, err = tx.Exec(updateThreadVoteByID, thread.Votes, id)
+		if err != nil {
+			_ = tx.Rollback()
+			return models.Thread{}, err
+		}
+		_, err = tx.Exec(intertVote, vote.Nickname, vote.Voice, thread.ID)
+		if err != nil {
+			_ = tx.Rollback()
+			return models.Thread{}, err
+		}
+		if err := tx.Commit(); err != nil {
+			_ = tx.Rollback()
+			return models.Thread{}, err
+		}
+		rows.Close()
+		return thread, nil
+	}
+	err = rows.Scan(
+		&curVote.Nickname,
+		&curVote.Voice)
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Thread{}, err
+	}
+	rows.Close()
 	if curVote.Voice == vote.Voice {
 		_ = tx.Rollback()
 		return thread, nil

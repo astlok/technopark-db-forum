@@ -37,6 +37,9 @@ func main() {
 
 	forumRepository := forumRepo.NewRepo(postgres.GetPostgres())
 	postRepository := postRepo.NewRepo(postgres.GetPostgres())
+	if err := postRepository.Prepare(); err != nil {
+		log.Fatalln(err)
+	}
 	serviceRepository := serviceRepo.NewRepo(postgres.GetPostgres())
 	threadRepository := threadRepo.NewRepo(postgres.GetPostgres())
 	userRepository := userRepo.NewRepo(postgres.GetPostgres())

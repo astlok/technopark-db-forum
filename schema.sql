@@ -51,6 +51,9 @@ CREATE UNLOGGED TABLE dbforum.thread
         REFERENCES dbforum.users (nickname)
 );
 create index thread_slug_idx on dbforum.thread (forum_slug);
+create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
+create index thread_id_pokr_idx on dbforum.thread (id, forum_slug);
+
 
 
 -- create index uku on dbforum.thread (id, forum_slug, created);
@@ -95,7 +98,7 @@ CREATE UNLOGGED TABLE dbforum.post
     FOREIGN KEY (thread_id)
         REFERENCES dbforum.thread (id)
 );
--- create index mem on dbforum.post (id, thread_id);
+create index mem on dbforum.post (id, thread_id, tree);
 -- create index kek on dbforum.post (id, thread_id, parent, tree);
 -- create index lul on dbforum.post (tree, id);
 
@@ -142,6 +145,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION dbforum.update_forum_posts() RETURNS TRIGGER AS
 $$
 BEGIN
+    NEW.tree = (SELECT tree FROM dbforum.post WHERE id=NEW.parent LIMIT 1) || NEW.ID;
     UPDATE dbforum.forum
     SET posts = posts + 1
     WHERE slug = NEW.forum_slug;
@@ -163,7 +167,7 @@ CREATE TRIGGER thread_insert_user_forum
 EXECUTE FUNCTION dbforum.insert_forum_user();
 
 CREATE TRIGGER post_insert
-    AFTER INSERT
+    BEFORE INSERT
     ON dbforum.post
     FOR EACH ROW
 EXECUTE FUNCTION dbforum.update_forum_posts();

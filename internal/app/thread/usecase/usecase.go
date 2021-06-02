@@ -54,16 +54,7 @@ func (u *UseCase) ChangeThread(idOrSlug string, thread models.Thread) (models.Th
 }
 
 func (u *UseCase) VoteThread(idOrSlug string, vote models.Vote) (models.Thread, error) {
-	var id uint64
-	var err error
-	if id, err = strconv.ParseUint(idOrSlug, 10, 64); err != nil {
-		thread, err := u.threadRepo.VoteThreadBySlug(idOrSlug, vote)
-		if err != nil {
-			return models.Thread{}, err
-		}
-		return thread, nil
-	}
-	thread, err := u.threadRepo.VoteThreadByID(id, vote)
+	thread, err := u.threadRepo.VoteThreadByID(idOrSlug, vote)
 	if err != nil {
 		return models.Thread{}, err
 	}

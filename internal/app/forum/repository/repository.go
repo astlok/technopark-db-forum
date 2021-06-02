@@ -37,7 +37,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 	if err != nil {
 		return err
 	}
-	rows, err := tx.Query(selectForumBySlug, &forum.Slug)
+	rows, err := tx.Query("selectForumBySlug", &forum.Slug)
 	if  err != nil {
 		_ = tx.Rollback()
 		return err
@@ -60,7 +60,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 
 	rows.Close()
 	var nickname string
-	rows, err = tx.Query(selectNicknameByNickname, forum.User)
+	rows, err = tx.Query("selectNicknameByNickname", forum.User)
 	if  err != nil {
 		_ = tx.Rollback()
 		return err
@@ -77,7 +77,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 	}
 	forum.User = nickname
 	_, err = tx.Exec(
-		insertForum,
+		"insertForum",
 		forum.User,
 		forum.Title,
 		forum.Slug)

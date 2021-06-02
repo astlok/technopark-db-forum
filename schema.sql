@@ -53,8 +53,7 @@ CREATE UNLOGGED TABLE dbforum.thread
 create index thread_slug_idx on dbforum.thread (forum_slug);
 create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
 create index thread_id_pokr_idx on dbforum.thread (id, forum_slug);
-
-
+create index thread_2slug_idx on dbforum.thread (slug);
 
 -- create index uku on dbforum.thread (id, forum_slug, created);
 -- create index ala on dbforum.thread (id, forum_slug);
@@ -75,8 +74,12 @@ CREATE UNLOGGED TABLE dbforum.votes
         REFERENCES dbforum.thread (id)
 );
 
-create index xax on dbforum.votes (thread_id, nickname);
+create index xax on dbforum.votes (thread_id, nickname, voice);
 
+--
+-- UPDATE dbforum.post SET message=COALESCE(NULLIF($1, ''), message),
+--                  is_edited = CASE WHEN $1 = '' OR message = $1 THEN is_edited ELSE true END
+--  WHERE id=$2 RETURNING id, author_nickname, forum_slug, thread_id, message, parent, is_edited, created;
 
 CREATE UNLOGGED TABLE dbforum.post
 (
@@ -152,6 +155,40 @@ BEGIN
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION dbforum.insert_thread_vote() RETURNS TRIGGER AS
+$$
+BEGIN
+    UPDATE dbforum.thread SET votes=(votes + NEW.voice) WHERE id=NEW.thread_id;
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION dbforum.update_thread_vote() RETURNS TRIGGER AS
+$$
+BEGIN
+    IF NEW.voice > 0 THEN
+        UPDATE dbforum.thread SET votes=(votes + 2) WHERE id=NEW.thread_id;
+    ELSE
+        UPDATE dbforum.thread SET votes=(votes - 2) WHERE id=NEW.thread_id;
+    END IF;
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER insert_voice
+    AFTER INSERT
+    ON dbforum.votes
+    FOR EACH ROW
+EXECUTE FUNCTION dbforum.insert_thread_vote();
+
+
+CREATE TRIGGER update_voice
+    AFTER UPDATE
+    ON dbforum.votes
+    FOR EACH ROW
+EXECUTE FUNCTION dbforum.update_thread_vote();
 
 
 CREATE TRIGGER thread_insert

@@ -30,10 +30,10 @@ const (
 
 	selectPostByID = "SELECT * FROM dbforum.post WHERE id=$1"
 
-	updatePost = `UPDATE dbforum.post SET
-					message=$1,
-                    is_edited=$2
-					WHERE id=$3`
+	updatePost = `UPDATE dbforum.post SET message=COALESCE(NULLIF($1, ''), message),
+                	is_edited = CASE WHEN $1 = '' OR message = $1 THEN is_edited ELSE true END
+					WHERE id=$2 
+					RETURNING id, author_nickname, forum_slug, thread_id, message, parent, is_edited, created`
 )
 
 type Repository struct {
@@ -157,7 +157,7 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 	}
 	var threadID uint64
 	if threadID, err = strconv.ParseUint(idOrSlug, 10, 64); err != nil {
-		rows, err := tx.Query("SELECT id FROM dbforum.thread WHERE slug=$1 LIMIT 1", idOrSlug)
+		rows, err := tx.Query("selectIDFromThread", idOrSlug)
 		if err != nil {
 			_ = tx.Rollback()
 			return nil, err
@@ -173,7 +173,7 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 		}
 		rows.Close()
 	} else {
-		rows, err := tx.Query("SELECT 1 FROM dbforum.thread WHERE id=$1 LIMIT 1", threadID)
+		rows, err := tx.Query("checkThreadExists", threadID)
 		if err != nil {
 			_ = tx.Rollback()
 			return nil, err
@@ -253,7 +253,7 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 
 func (r *Repository) GetPostByID(id uint64) (*models.Post, error) {
 	post := models.Post{}
-	rows, err := r.db.Query(selectPostByID, id)
+	rows, err := r.db.Query("selectPostByID", id)
 	if err != nil {
 		return nil, err
 	}
@@ -277,12 +277,20 @@ func (r *Repository) GetPostByID(id uint64) (*models.Post, error) {
 	return &post, nil
 }
 
-func (r *Repository) ChangePost(post *models.Post) error {
-	_, err := r.db.Exec(updatePost, &post.Message, &post.IsEdited, &post.ID)
+func (r *Repository) ChangePost(post *models.Post) (models.Post, error) {
+	err := r.db.QueryRow("updatePost", &post.Message, &post.ID).Scan(
+		&post.ID,
+		&post.Author,
+		&post.Forum,
+		&post.Thread,
+		&post.Message,
+		&post.Parent,
+		&post.IsEdited,
+		&post.Created)
 	if err != nil {
-		return err
+		return models.Post{}, customErr.ErrPostNotFound
 	}
-	return nil
+	return *post, nil
 }
 
 func (r *Repository) Prepare() error {
@@ -309,6 +317,26 @@ func (r *Repository) Prepare() error {
 		return err
 	}
 
+	_, err = r.db.Prepare("selectIDFromThread", "SELECT id FROM dbforum.thread WHERE slug=$1 LIMIT 1")
+
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("checkThreadExists", "SELECT 1 FROM dbforum.thread WHERE id=$1 LIMIT 1")
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("updatePost", updatePost)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectPostByID", selectPostByID)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

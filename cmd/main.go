@@ -36,13 +36,22 @@ func main() {
 	}
 
 	forumRepository := forumRepo.NewRepo(postgres.GetPostgres())
+	if err := forumRepository.Prepare(); err != nil {
+		log.Fatalln(err)
+	}
 	postRepository := postRepo.NewRepo(postgres.GetPostgres())
 	if err := postRepository.Prepare(); err != nil {
 		log.Fatalln(err)
 	}
 	serviceRepository := serviceRepo.NewRepo(postgres.GetPostgres())
 	threadRepository := threadRepo.NewRepo(postgres.GetPostgres())
+	if err := threadRepository.Prepare(); err != nil {
+		log.Fatalln(err)
+	}
 	userRepository := userRepo.NewRepo(postgres.GetPostgres())
+	if err := userRepository.Prepare(); err != nil {
+		log.Fatalln(err)
+	}
 
 	forumUseCase := forumUCase.NewUseCase(*forumRepository, *userRepository, *threadRepository)
 	postUseCase := postUCase.NewUseCase(*postRepository, *userRepository, *threadRepository, *forumRepository)
@@ -78,6 +87,7 @@ func main() {
 
 	post.HandleFunc("/{id:[0-9]+}/details", postHandler.GetInfo).Methods(http.MethodGet)
 
+	//done
 	post.HandleFunc("/{id:[0-9]+}/details", postHandler.ChangeMessage).Methods(http.MethodPost)
 
 	service := router.PathPrefix("/api/service").Subrouter()
@@ -88,22 +98,28 @@ func main() {
 
 	thread := router.PathPrefix("/api/thread").Subrouter()
 
+	//done
 	thread.HandleFunc("/{slug_or_id}/create", threadHandler.CreatePost).Methods(http.MethodPost)
 
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ThreadInfo).Methods(http.MethodGet)
 
+
+	//done
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ChangeThread).Methods(http.MethodPost)
 
 	thread.HandleFunc("/{slug_or_id}/posts", threadHandler.GetPosts).Methods(http.MethodGet)
 
+	//done
 	thread.HandleFunc("/{slug_or_id}/vote", threadHandler.VoteThread).Methods(http.MethodPost)
 
 	user := router.PathPrefix("/api/user").Subrouter()
 
+	//done
 	user.HandleFunc("/{nickname}/create", userHandler.CreateUser).Methods(http.MethodPost)
 
 	user.HandleFunc("/{nickname}/profile", userHandler.GetUserInfo).Methods(http.MethodGet)
 
+	//done
 	user.HandleFunc("/{nickname}/profile", userHandler.ChangeUser).Methods(http.MethodPost)
 
 	server := &http.Server{

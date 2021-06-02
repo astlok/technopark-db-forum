@@ -98,14 +98,8 @@ func (h *Handlers) ChangeUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, customErr.ErrConflict) {
-		userNick, err := h.useCase.GetUserNickByEmail(user.Email)
-		if err != nil {
-			httputils.RespondErr(w, http.StatusInternalServerError, nil)
-			log.Println(err)
-			return
-		}
 		resp := map[string]string{
-			"message": "This email is already registered by user: " + userNick,
+			"message": "This email is already registered by user: ",
 		}
 		httputils.RespondErr(w, http.StatusConflict, resp)
 		return

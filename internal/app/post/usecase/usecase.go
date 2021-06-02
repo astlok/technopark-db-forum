@@ -68,17 +68,9 @@ func (u *UseCase) GetPostInfoByID(id uint64, related []string) (models.PostInfo,
 }
 
 func (u *UseCase) ChangeMessage(post models.Post) (*models.Post, error) {
-	oldPost, err := u.postRepo.GetPostByID(post.ID)
+	post, err := u.postRepo.ChangePost(&post)
 	if err != nil {
 		return nil, err
 	}
-	if post.Message != "" && post.Message != oldPost.Message {
-		oldPost.Message = post.Message
-		oldPost.IsEdited = true
-		err = u.postRepo.ChangePost(oldPost)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return oldPost, nil
+	return &post, nil
 }

@@ -54,10 +54,10 @@ const (
 	selectByNickname = "SELECT nickname, fullname, about, email FROM dbforum.users WHERE nickname = $1"
 
 	updateUser = `UPDATE dbforum.users SET 
-							 fullname=$1,
-							 about=$2,
-							 email=$3
-                         WHERE nickname=$4`
+					fullname=COALESCE(NULLIF($1, ''), fullname),
+					about=COALESCE(NULLIF($2, ''), about),
+					email=COALESCE(NULLIF($3, ''), email)
+					WHERE nickname=$4 RETURNING nickname, fullname, about, email`
 
 	selectNickByEmail = "SELECT nickname FROM dbforum.users WHERE email = $1"
 )
@@ -132,7 +132,7 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 }
 
 func (r *Repository) CreateUser(user models.User) error {
-	_, err := r.db.Exec(insertUser, &user.Nickname, &user.Fullname, &user.About, &user.Email)
+	_, err := r.db.Exec("insertUser", &user.Nickname, &user.Fullname, &user.About, &user.Email)
 	if driverErr, ok := err.(pgx.PgError); ok {
 		if driverErr.Code == "23505" {
 			return customErr.ErrDuplicate
@@ -192,35 +192,11 @@ func (r *Repository) ChangeUser(user *models.User) error {
 	if err != nil {
 		return err
 	}
-	var oldUser models.User
-	rows, err := tx.Query(selectByNickname, user.Nickname)
-	if err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if !rows.Next() {
-		_ = tx.Rollback()
-		return customErr.ErrUserNotFound
-	}
-	err = rows.Scan(
-		&oldUser.Nickname,
-		&oldUser.Fullname,
-		&oldUser.About,
-		&oldUser.Email)
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	if user.Fullname == "" {
-		user.Fullname = oldUser.Fullname
-	}
-	if user.About == "" {
-		user.About = oldUser.About
-	}
-	if user.Email == "" {
-		user.Email = oldUser.Email
-	}
-	_, err = tx.Exec(updateUser, &user.Fullname, &user.About, &user.Email, &user.Nickname)
+	err = tx.QueryRow("updateUser", &user.Fullname, &user.About, &user.Email, &user.Nickname).Scan(
+		&user.Nickname,
+		&user.Fullname,
+		&user.About,
+		&user.Email)
 	if driverErr, ok := err.(pgx.PgError); ok {
 		if driverErr.Code == "23505" {
 			_ = tx.Rollback()
@@ -229,7 +205,7 @@ func (r *Repository) ChangeUser(user *models.User) error {
 	}
 	if err != nil {
 		_ = tx.Rollback()
-		return err
+		return customErr.ErrUserNotFound
 	}
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
@@ -255,4 +231,17 @@ func (r *Repository) GetUserNickByEmail(email string) (string, error) {
 		return "", err
 	}
 	return nickname, nil
+}
+
+func (r *Repository) Prepare() error {
+	_, err := r.db.Prepare("insertUser", insertUser)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("updateUser", updateUser)
+	if err != nil {
+		return err
+	}
+	return nil
 }

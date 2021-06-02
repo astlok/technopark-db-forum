@@ -4,6 +4,7 @@ import (
 	customErr "DBForum/internal/app/errors"
 	"DBForum/internal/app/models"
 	"database/sql"
+	"fmt"
 	"github.com/go-openapi/strfmt"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -54,7 +55,6 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 	if len(posts) == 0 {
 		posts = append(posts, models.Post{Forum: idOrSlug})
 	}
-	result := make([]models.Post, 0, len(posts))
 	var threadID uint64
 	var forumSlug string
 	if threadID, err = strconv.ParseUint(idOrSlug, 10, 64); err != nil {
@@ -68,6 +68,10 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 			return nil, customErr.ErrThreadNotFound
 		}
 		err = rows.Scan(&threadID, &forumSlug)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
 		rows.Close()
 	} else {
 		rows, err := tx.Query("selectForumSlug", threadID)
@@ -80,8 +84,13 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 			return nil, customErr.ErrThreadNotFound
 		}
 		err = rows.Scan(&forumSlug)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
 		rows.Close()
 	}
+	err = nil
 	if posts[0].Parent != 0 {
 		var parent uint64
 		rows, err := tx.Query("selectThreadIDFromPost", posts[0].Parent)
@@ -105,11 +114,12 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 	}
 
 	created := strfmt.DateTime(time.Now())
-	//query := "INSERT INTO "
-	for _, post := range posts {
-		post.Created = created
-		post.Thread = threadID
-		post.Forum = forumSlug
+	query := "INSERT INTO dbforum.post(author_nickname, forum_slug, thread_id, parent, created, message) VALUES "
+	var args []interface{}
+	for i, post := range posts {
+		posts[i].Created = created
+		posts[i].Thread = threadID
+		posts[i].Forum = forumSlug
 		if post.Author != "" {
 			row, err := tx.Query("selectPostAuthor", post.Author)
 			if err != nil {
@@ -125,28 +135,45 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 			_ = tx.Rollback()
 			return nil, nil
 		}
-		err = tx.QueryRow(
-			"insertPost",
-			post.Author,
-			post.Forum,
-			post.Thread,
-			post.Parent,
-			post.Created,
-			post.Message).Scan(&post.ID)
+		//err = tx.QueryRow(
+		//	"insertPost",
+		//	post.Author,
+		//	post.Forum,
+		//	post.Thread,
+		//	post.Parent,
+		//	post.Created,
+		//	post.Message).Scan(&post.ID)
+
+		query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)",
+			i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6)
+		if i != len(posts)-1 {
+			query += ","
+		} else {
+			query += " RETURNING ID"
+		}
+		args = append(args, post.Author, forumSlug, threadID, post.Parent, created, post.Message)
+	}
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	index := 0
+	for rows.Next() {
+		err = rows.Scan(&posts[index].ID)
 		if err != nil {
 			_ = tx.Rollback()
 			return nil, err
 		}
-		if post.Author != "" {
-			result = append(result, post)
-		}
+		index++
 	}
+	rows.Close()
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
 		return nil, err
 	}
 
-	return result, nil
+	return posts, nil
 }
 
 func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bool, sort string) ([]models.Post, error) {

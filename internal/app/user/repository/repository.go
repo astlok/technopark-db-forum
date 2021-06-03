@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	//TODO: навесить индекс на никнейм
 	selectIDByNickname = "SELECT id FROM dbforum.users WHERE nickname = $1"
 
 	selectUsersByForumSlugSinceDesc = "SELECT fu.nickname, fu.fullname, fu.about, fu.email " +
@@ -76,7 +75,8 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 		return nil, err
 	}
 	var users []models.User
-	row, err := tx.Query("SELECT 1 FROM dbforum.forum WHERE slug = $1 LIMIT 1", forumSlug)
+	row, err := tx.Query("checkForumExist", forumSlug)
+
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -88,15 +88,15 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 	row.Close()
 	if since == "" {
 		if desc {
-			row, err = r.db.Query(selectUsersByForumSlugDesc, forumSlug, limit)
+			row, err = r.db.Query("selectUsersByForumSlugDesc", forumSlug, limit)
 		} else {
-			row, err = r.db.Query(selectUsersByForumSlug, forumSlug, limit)
+			row, err = r.db.Query("selectUsersByForumSlug", forumSlug, limit)
 		}
 	} else {
 		if desc {
-			row, err = r.db.Query(selectUsersByForumSlugSinceDesc, forumSlug, since, limit)
+			row, err = r.db.Query("selectUsersByForumSlugSinceDesc", forumSlug, since, limit)
 		} else {
-			row, err = r.db.Query(selectUsersByForumSlugSince, forumSlug, since, limit)
+			row, err = r.db.Query("selectUsersByForumSlugSince", forumSlug, since, limit)
 		}
 	}
 
@@ -162,7 +162,7 @@ func (r *Repository) GetUsersByNickAndEmail(nickname string, email string) ([]mo
 
 func (r *Repository) GetUserByNick(nickname string) (*models.User, error) {
 	var user models.User
-	rows, err := r.db.Query(selectByNickname, nickname)
+	rows, err := r.db.Query("selectByNickname", nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -237,5 +237,36 @@ func (r *Repository) Prepare() error {
 	if err != nil {
 		return err
 	}
+
+	_, err = r.db.Prepare("selectUsersByForumSlugSinceDesc", selectUsersByForumSlugSinceDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectUsersByForumSlugSince", selectUsersByForumSlugSince)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectUsersByForumSlugDesc", selectUsersByForumSlugDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectUsersByForumSlug", selectUsersByForumSlug)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("checkForumExist", "SELECT 1 FROM dbforum.forum WHERE slug = $1 LIMIT 1")
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByNickname", selectByNickname)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -135,14 +135,6 @@ func (r *Repository) CreatePosts(idOrSlug string, posts []models.Post) ([]models
 			_ = tx.Rollback()
 			return nil, nil
 		}
-		//err = tx.QueryRow(
-		//	"insertPost",
-		//	post.Author,
-		//	post.Forum,
-		//	post.Thread,
-		//	post.Parent,
-		//	post.Created,
-		//	post.Message).Scan(&post.ID)
 
 		query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)",
 			i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6)
@@ -216,13 +208,13 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 	if desc {
 		switch sort {
 		case "flat":
-			rows, err = tx.Query(selectByThreadIDFlatDesc, threadID, since, limit)
+			rows, err = tx.Query("selectByThreadIDFlatDesc", threadID, since, limit)
 		case "tree":
-			rows, err = tx.Query(selectByThreadIDTreeDesc, threadID, since, limit)
+			rows, err = tx.Query("selectByThreadIDTreeDesc", threadID, since, limit)
 		case "parent_tree":
-			rows, err = tx.Query(selectByThreadIDParentTreeDesc, threadID, limit, since)
+			rows, err = tx.Query("selectByThreadIDParentTreeDesc", threadID, limit, since)
 		default:
-			rows, err = tx.Query(selectByThreadIDFlatDesc, threadID, since, limit)
+			rows, err = tx.Query("selectByThreadIDFlatDesc", threadID, since, limit)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -235,17 +227,13 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 	} else {
 		switch sort {
 		case "flat":
-			rows, err = tx.Query(selectByThreadIDFlat, threadID, since, limit)
+			rows, err = tx.Query("selectByThreadIDFlat", threadID, since, limit)
 		case "tree":
-			rows, err = tx.Query(selectByThreadIDTree, threadID, since, limit)
+			rows, err = tx.Query("selectByThreadIDTree", threadID, since, limit)
 		case "parent_tree":
-			rows, err = tx.Query(selectByThreadIDParentTree, threadID, limit, since)
+			rows, err = tx.Query("selectByThreadIDParentTree", threadID, limit, since)
 		default:
-			rows, err = tx.Query(selectByThreadIDFlat, threadID, since, limit)
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			_ = tx.Rollback()
-			return []models.Post{}, nil
+			rows, err = tx.Query("selectByThreadIDFlat", threadID, since, limit)
 		}
 		if err != nil {
 			_ = tx.Rollback()
@@ -361,6 +349,50 @@ func (r *Repository) Prepare() error {
 	}
 
 	_, err = r.db.Prepare("selectPostByID", selectPostByID)
+	if err != nil {
+		return err
+	}
+
+
+
+
+
+	_, err = r.db.Prepare("selectByThreadIDFlatDesc", selectByThreadIDFlatDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDTreeDesc", selectByThreadIDTreeDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDParentTreeDesc", selectByThreadIDParentTreeDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDFlatDesc", selectByThreadIDFlatDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDFlat", selectByThreadIDFlat)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDTree", selectByThreadIDTree)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDParentTree", selectByThreadIDParentTree)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectByThreadIDFlat", selectByThreadIDFlat)
 	if err != nil {
 		return err
 	}

@@ -74,3 +74,5 @@ func (u *UseCase) ChangeMessage(post models.Post) (*models.Post, error) {
 	}
 	return &post, nil
 }
+
+

@@ -21,12 +21,12 @@ func (r *Repository) ClearDB() error {
 		return err
 	}
 
-	_, err = tx.Exec(`TRUNCATE dbforum.post CASCADE`)
-	_, err = tx.Exec(`TRUNCATE dbforum.forum_users CASCADE`)
-	_, err = tx.Exec(`TRUNCATE dbforum.thread CASCADE`)
-	_, err = tx.Exec(`TRUNCATE dbforum.votes CASCADE`)
-	_, err = tx.Exec(`TRUNCATE dbforum.forum CASCADE`)
-	_, err = tx.Exec(`TRUNCATE dbforum.users CASCADE`)
+	_, err = tx.Exec("truncPost")
+	_, err = tx.Exec("truncForumUsers")
+	_, err = tx.Exec("truncThread")
+	_, err = tx.Exec("truncVotes")
+	_, err = tx.Exec("truncForum")
+	_, err = tx.Exec("truncUsers")
 
 	if err != nil {
 		_ = tx.Rollback()
@@ -44,10 +44,10 @@ func (r *Repository) Status() (models.NumRecords, error) {
 	if err != nil {
 		return models.NumRecords{}, err
 	}
-	err = tx.QueryRow("SELECT COUNT(*) as post_count FROM dbforum.post").Scan(&numRec.Post)
-	err = tx.QueryRow("SELECT COUNT(*) as user_count FROM dbforum.users").Scan(&numRec.User)
-	err = tx.QueryRow("SELECT COUNT(*) as forum_count FROM dbforum.forum").Scan(&numRec.Forum)
-	err = tx.QueryRow("SELECT COUNT(*) as thread_count FROM dbforum.thread").Scan(&numRec.Thread)
+	err = tx.QueryRow("countPost").Scan(&numRec.Post)
+	err = tx.QueryRow("countUsers").Scan(&numRec.User)
+	err = tx.QueryRow("countForum").Scan(&numRec.Forum)
+	err = tx.QueryRow("countThread").Scan(&numRec.Thread)
 	if err != nil {
 		_ = tx.Rollback()
 		return models.NumRecords{}, err
@@ -56,4 +56,58 @@ func (r *Repository) Status() (models.NumRecords, error) {
 		return models.NumRecords{}, err
 	}
 	return numRec, nil
+}
+
+func (r *Repository) Prepare() error {
+	_, err := r.db.Prepare("truncPost", `TRUNCATE dbforum.post CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("truncForumUsers", `TRUNCATE dbforum.forum_users CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("truncThread", `TRUNCATE dbforum.thread CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("truncVotes", `TRUNCATE dbforum.votes CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("truncForum", `TRUNCATE dbforum.forum CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("truncUsers", `TRUNCATE dbforum.users CASCADE`)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("countPost", "SELECT COUNT(*) as post_count FROM dbforum.post")
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("countUsers", "SELECT COUNT(*) as user_count FROM dbforum.users")
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("countForum", "SELECT COUNT(*) as forum_count FROM dbforum.forum")
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("countThread", "SELECT COUNT(*) as thread_count FROM dbforum.thread")
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

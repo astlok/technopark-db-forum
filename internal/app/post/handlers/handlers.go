@@ -42,7 +42,7 @@ func (h *Handlers) GetInfo(w http.ResponseWriter, r *http.Request) {
 
 	if errors.Is(err, customErr.ErrPostNotFound) {
 		resp := map[string]string{
-			"message": "Can't find post with id: " + strconv.FormatUint(id, 10),
+			"message": "Can't find post with id: ",
 		}
 		httputils.RespondErr(w, http.StatusNotFound, resp)
 		return

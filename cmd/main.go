@@ -44,6 +44,9 @@ func main() {
 		log.Fatalln(err)
 	}
 	serviceRepository := serviceRepo.NewRepo(postgres.GetPostgres())
+	if err := serviceRepository.Prepare(); err != nil {
+		log.Fatalln(err)
+	}
 	threadRepository := threadRepo.NewRepo(postgres.GetPostgres())
 	if err := threadRepository.Prepare(); err != nil {
 		log.Fatalln(err)
@@ -80,8 +83,10 @@ func main() {
 	//done
 	forum.HandleFunc("/{slug}/create", forumHandler.CreateThread).Methods(http.MethodPost)
 
+	//done
 	forum.HandleFunc("/{slug}/users", forumHandler.GetUsers).Methods(http.MethodGet)
 
+	//done
 	forum.HandleFunc("/{slug}/threads", forumHandler.GetThreads).Methods(http.MethodGet)
 
 	post := router.PathPrefix("/api/post").Subrouter()
@@ -93,8 +98,10 @@ func main() {
 
 	service := router.PathPrefix("/api/service").Subrouter()
 
+	//done
 	service.HandleFunc("/clear", serviceHandler.ClearDB).Methods(http.MethodPost)
 
+	//done
 	service.HandleFunc("/status", serviceHandler.Status).Methods(http.MethodGet)
 
 	thread := router.PathPrefix("/api/thread").Subrouter()
@@ -102,12 +109,14 @@ func main() {
 	//done
 	thread.HandleFunc("/{slug_or_id}/create", threadHandler.CreatePost).Methods(http.MethodPost)
 
+	//done
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ThreadInfo).Methods(http.MethodGet)
 
 
 	//done
 	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ChangeThread).Methods(http.MethodPost)
 
+	//done
 	thread.HandleFunc("/{slug_or_id}/posts", threadHandler.GetPosts).Methods(http.MethodGet)
 
 	//done
@@ -118,6 +127,7 @@ func main() {
 	//done
 	user.HandleFunc("/{nickname}/create", userHandler.CreateUser).Methods(http.MethodPost)
 
+	//done
 	user.HandleFunc("/{nickname}/profile", userHandler.GetUserInfo).Methods(http.MethodGet)
 
 	//done

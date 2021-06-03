@@ -161,7 +161,7 @@ func (r *Repository) CreateThread(thread *models.Thread) (*models.Thread, error)
 
 func (r *Repository) FindThreadBySlug(threadSlug string) (*models.Thread, error) {
 	thread := models.Thread{}
-	rows, err := r.db.Query(selectThreadBySlug, threadSlug)
+	rows, err := r.db.Query("selectThreadBySlug", threadSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (r *Repository) FindThreadBySlug(threadSlug string) (*models.Thread, error)
 
 func (r *Repository) FindThreadByID(id uint64) (*models.Thread, error) {
 	thread := models.Thread{}
-	rows, err := r.db.Query(selectThreadByID, id)
+	rows, err := r.db.Query("selectThreadByID", id)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string
 		return nil, err
 	}
 	var threads []models.Thread
-	row, err := tx.Query("SELECT 1 FROM dbforum.forum WHERE slug = $1 LIMIT 1", forumSlug)
+	row, err := tx.Query("checkForum", forumSlug)
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
@@ -227,15 +227,15 @@ func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string
 	row.Close()
 	if since == "" {
 		if desc {
-			row, err = tx.Query(selectThreadsByForumSlugDesc, forumSlug, limit)
+			row, err = tx.Query("selectThreadsByForumSlugDesc", forumSlug, limit)
 		} else {
-			row, err = tx.Query(selectThreadsByForumSlug, forumSlug, limit)
+			row, err = tx.Query("selectThreadsByForumSlug", forumSlug, limit)
 		}
 	} else {
 		if desc {
-			row, err = tx.Query(selectThreadsByForumSlugSinceDesc, forumSlug, since, limit)
+			row, err = tx.Query("selectThreadsByForumSlugSinceDesc", forumSlug, since, limit)
 		} else {
-			row, err = tx.Query(selectThreadsByForumSlugSince, forumSlug, since, limit)
+			row, err = tx.Query("selectThreadsByForumSlugSince", forumSlug, since, limit)
 		}
 	}
 	if err != nil {
@@ -444,6 +444,31 @@ func (r *Repository) Prepare() error {
 	}
 
 	_, err = r.db.Prepare("updateUserVote", updateUserVote)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectThreadsByForumSlugDesc", selectThreadsByForumSlugDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectThreadsByForumSlug", selectThreadsByForumSlug)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectThreadsByForumSlugSinceDesc", selectThreadsByForumSlugSinceDesc)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("selectThreadsByForumSlugSince", selectThreadsByForumSlugSince)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Prepare("checkForum", "SELECT 1 FROM dbforum.forum WHERE slug = $1 LIMIT 1")
 	if err != nil {
 		return err
 	}

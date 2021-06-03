@@ -3,9 +3,7 @@ package repository
 import (
 	customErr "DBForum/internal/app/errors"
 	"DBForum/internal/app/models"
-	"database/sql"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -102,10 +100,6 @@ func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, 
 		}
 	}
 
-	if errors.Is(err, sql.ErrNoRows) {
-		_ = tx.Rollback()
-		return nil, customErr.ErrUserNotFound
-	}
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err

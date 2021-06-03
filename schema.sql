@@ -101,9 +101,49 @@ CREATE UNLOGGED TABLE dbforum.post
     FOREIGN KEY (thread_id)
         REFERENCES dbforum.thread (id)
 );
-create index mem on dbforum.post (id, thread_id, tree);
--- create index kek on dbforum.post (id, thread_id, parent, tree);
--- create index lul on dbforum.post (tree, id);
+
+explain analyse
+SELECT *
+FROM dbforum.post
+WHERE tree[1] IN (SELECT id
+                  FROM dbforum.post
+                  WHERE thread_id = '5000'
+                    AND parent = 0
+                    AND CASE WHEN '0' > 0 THEN tree[1] > (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
+                  ORDER BY id
+                  LIMIT '16')
+ORDER BY tree, id;
+
+SELECT *
+FROM dbforum.post
+WHERE tree[1] IN (SELECT id
+                  FROM dbforum.post
+                  WHERE thread_id = '5001'
+                    AND parent = 0
+                    AND CASE WHEN '0' > 0 THEN tree[1] < (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
+                  ORDER BY id DESC
+                  LIMIT '18')
+ORDER BY tree[1] DESC, tree, id;
+
+create index pgb_first_idx on dbforum.post (thread_id, parent);
+create index pgb_sec_idx on dbforum.post ((tree[1]), id);
+create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
+create index pgb_fourth_idx on dbforum.post (tree, id);
+create index pgb_fifth_idx on dbforum.post using gin(tree);
+
+
+
+-- create index if not exists post_id_path on dbforum.post (id, (tree[1]));
+-- create index if not exists post_thread_id_path1_parent on dbforum.post (thread_id, id, (tree[1]), parent);
+-- create index if not exists post_thread_path_id on dbforum.post (thread_id, tree, id);
+-- create index if not exists post_path1 on dbforum.post ((tree[1]));
+-- create index if not exists post_thread_id on dbforum.post (thread_id, id);
+-- CREATE INDEX if not exists post_thr_id ON dbforum.post (thread_id);
+
+
+
+
+
 
 CREATE UNLOGGED TABLE dbforum.forum_users
 (
@@ -120,7 +160,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 
     PRIMARY KEY (nickname, forum_slug)
 );
--- create index on dbforum.forum_users (forum_slug, nickname);
+create index on dbforum.forum_users (forum_slug);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$
@@ -148,7 +188,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION dbforum.update_forum_posts() RETURNS TRIGGER AS
 $$
 BEGIN
-    NEW.tree = (SELECT tree FROM dbforum.post WHERE id=NEW.parent LIMIT 1) || NEW.ID;
+    NEW.tree = (SELECT tree FROM dbforum.post WHERE id = NEW.parent LIMIT 1) || NEW.ID;
     UPDATE dbforum.forum
     SET posts = posts + 1
     WHERE slug = NEW.forum_slug;
@@ -160,7 +200,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION dbforum.insert_thread_vote() RETURNS TRIGGER AS
 $$
 BEGIN
-    UPDATE dbforum.thread SET votes=(votes + NEW.voice) WHERE id=NEW.thread_id;
+    UPDATE dbforum.thread SET votes=(votes + NEW.voice) WHERE id = NEW.thread_id;
     RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
@@ -169,9 +209,9 @@ CREATE OR REPLACE FUNCTION dbforum.update_thread_vote() RETURNS TRIGGER AS
 $$
 BEGIN
     IF NEW.voice > 0 THEN
-        UPDATE dbforum.thread SET votes=(votes + 2) WHERE id=NEW.thread_id;
+        UPDATE dbforum.thread SET votes=(votes + 2) WHERE id = NEW.thread_id;
     ELSE
-        UPDATE dbforum.thread SET votes=(votes - 2) WHERE id=NEW.thread_id;
+        UPDATE dbforum.thread SET votes=(votes - 2) WHERE id = NEW.thread_id;
     END IF;
     RETURN NEW;
 END

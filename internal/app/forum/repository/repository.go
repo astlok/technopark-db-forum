@@ -101,7 +101,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	forum := models.Forum{}
-	rows, err := r.db.Query(selectForumBySlug, slug)
+	rows, err := r.db.Query("selectForumBySlug", slug)
 	if  err != nil {
 		return nil, err
 	}

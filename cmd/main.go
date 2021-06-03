@@ -74,6 +74,7 @@ func main() {
 	//done
 	forum.HandleFunc("/create", forumHandler.Create).Methods(http.MethodPost)
 
+	//done
 	forum.HandleFunc("/{slug}/details", forumHandler.Details).Methods(http.MethodGet)
 
 	//done

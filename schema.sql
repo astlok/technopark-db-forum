@@ -16,22 +16,22 @@ CREATE UNLOGGED TABLE dbforum.users
 create index user_nickname_idx on dbforum.users (nickname);
 -- create index gng on dbforum.users (email);
 
-SELECT fu.nickname, fu.fullname, fu.about, fu.email
-FROM dbforum.forum_users AS fu
-WHERE fu.forum_slug = 'HHIKQ1RFISJCS'
-  AND fu.nickname > 'a.M242XypFH7Fcj1'
-ORDER BY fu.nickname
-LIMIT '19';
-
-
-SELECT *
-FROM dbforum.post
-WHERE thread_id = '5527'
-  AND CASE WHEN '827965' > 0 THEN id > '827965' ELSE TRUE END
-ORDER BY id
-LIMIT '15';
-
-SELECT * FROM dbforum.post WHERE id = '1496086';
+-- SELECT fu.nickname, fu.fullname, fu.about, fu.email
+-- FROM dbforum.forum_users AS fu
+-- WHERE fu.forum_slug = 'HHIKQ1RFISJCS'
+--   AND fu.nickname > 'a.M242XypFH7Fcj1'
+-- ORDER BY fu.nickname
+-- LIMIT '19';
+--
+--
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE thread_id = '5527'
+--   AND CASE WHEN '827965' > 0 THEN id > '827965' ELSE TRUE END
+-- ORDER BY id
+-- LIMIT '15';
+--
+-- SELECT * FROM dbforum.post WHERE id = '1496086';
 
 CREATE UNLOGGED TABLE dbforum.forum
 (

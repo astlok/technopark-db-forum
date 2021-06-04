@@ -16,6 +16,22 @@ CREATE UNLOGGED TABLE dbforum.users
 create index user_nickname_idx on dbforum.users (nickname);
 -- create index gng on dbforum.users (email);
 
+SELECT fu.nickname, fu.fullname, fu.about, fu.email
+FROM dbforum.forum_users AS fu
+WHERE fu.forum_slug = 'HHIKQ1RFISJCS'
+  AND fu.nickname > 'a.M242XypFH7Fcj1'
+ORDER BY fu.nickname
+LIMIT '19';
+
+
+SELECT *
+FROM dbforum.post
+WHERE thread_id = '5527'
+  AND CASE WHEN '827965' > 0 THEN id > '827965' ELSE TRUE END
+ORDER BY id
+LIMIT '15';
+
+SELECT * FROM dbforum.post WHERE id = '1496086';
 
 CREATE UNLOGGED TABLE dbforum.forum
 (
@@ -93,34 +109,34 @@ CREATE UNLOGGED TABLE dbforum.post
         REFERENCES dbforum.thread (id)
 );
 
-explain analyse
-SELECT *
-FROM dbforum.post
-WHERE tree[1] IN (SELECT id
-                  FROM dbforum.post
-                  WHERE thread_id = '5000'
-                    AND parent = 0
-                    AND CASE WHEN '0' > 0 THEN tree[1] > (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
-                  ORDER BY id
-                  LIMIT '16')
-ORDER BY tree, id;
-
-SELECT *
-FROM dbforum.post
-WHERE tree[1] IN (SELECT id
-                  FROM dbforum.post
-                  WHERE thread_id = '5001'
-                    AND parent = 0
-                    AND CASE WHEN '0' > 0 THEN tree[1] < (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
-                  ORDER BY id DESC
-                  LIMIT '18')
-ORDER BY tree[1] DESC, tree, id;
+-- explain analyse
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE tree[1] IN (SELECT id
+--                   FROM dbforum.post
+--                   WHERE thread_id = '5000'
+--                     AND parent = 0
+--                     AND CASE WHEN '0' > 0 THEN tree[1] > (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
+--                   ORDER BY id
+--                   LIMIT '16')
+-- ORDER BY tree, id;
+--
+-- SELECT *
+-- FROM dbforum.post
+-- WHERE tree[1] IN (SELECT id
+--                   FROM dbforum.post
+--                   WHERE thread_id = '5001'
+--                     AND parent = 0
+--                     AND CASE WHEN '0' > 0 THEN tree[1] < (SELECT tree[1] FROM dbforum.post WHERE id = 0) ELSE TRUE END
+--                   ORDER BY id DESC
+--                   LIMIT '18')
+-- ORDER BY tree[1] DESC, tree, id;
 
 create index pgb_first_idx on dbforum.post (thread_id, parent);
 create index pgb_sec_idx on dbforum.post ((tree[1]), id);
 create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
 create index pgb_fourth_idx on dbforum.post (tree, id);
-create index pgb_fifth_idx on dbforum.post using gin(tree);
+create index pgb_fifth_idx on dbforum.post using gin (tree);
 
 
 -- create index if not exists post_id_path on dbforum.post (id, (tree[1]));

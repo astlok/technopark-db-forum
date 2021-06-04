@@ -266,30 +266,117 @@ func (r *Repository) GetPosts(idOrSlug string, limit int64, since int64, desc bo
 	return posts, nil
 }
 
-func (r *Repository) GetPostByID(id uint64) (*models.Post, error) {
-	post := models.Post{}
-	rows, err := r.db.Query("selectPostByID", id)
+func Find(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Repository) GetPostInfoByID(id uint64, related []string) (*models.PostInfo, error) {
+	tx, _ := r.db.Begin()
+	postInfo := models.PostInfo{
+		Post: &models.Post{},
+	}
+	rows, err := tx.Query("selectPostByID", id)
 	if err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 	if !rows.Next() {
+		_ = tx.Rollback()
 		return nil, customErr.ErrPostNotFound
 	}
 	err = rows.Scan(
-		&post.ID,
-		&post.Author,
-		&post.Forum,
-		&post.Thread,
-		&post.Message,
-		&post.Parent,
-		&post.IsEdited,
-		&post.Created,
-		&post.Tree)
+		&postInfo.Post.ID,
+		&postInfo.Post.Author,
+		&postInfo.Post.Forum,
+		&postInfo.Post.Thread,
+		&postInfo.Post.Message,
+		&postInfo.Post.Parent,
+		&postInfo.Post.IsEdited,
+		&postInfo.Post.Created,
+		&postInfo.Post.Tree)
 	rows.Close()
 	if err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
-	return &post, nil
+
+	if Find(related, "user") {
+		rows, err := tx.Query("selectByNickname", postInfo.Post.Author)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if rows.Next() {
+			postInfo.Author = &models.User{}
+			err = rows.Scan(
+				&postInfo.Author.Nickname,
+				&postInfo.Author.Fullname,
+				&postInfo.Author.About,
+				&postInfo.Author.Email)
+			if err != nil {
+				_ = tx.Rollback()
+				return nil, err
+			}
+		}
+		rows.Close()
+	}
+	if Find(related, "thread") {
+		rows, err := tx.Query("selectThreadByID", postInfo.Post.Thread)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if rows.Next() {
+			postInfo.Thread = &models.Thread{}
+			err = rows.Scan(
+				&postInfo.Thread.ID,
+				&postInfo.Thread.Forum,
+				&postInfo.Thread.Author,
+				&postInfo.Thread.Title,
+				&postInfo.Thread.Message,
+				&postInfo.Thread.Votes,
+				&postInfo.Thread.Slug,
+				&postInfo.Thread.Created)
+			if err != nil {
+				_ = tx.Rollback()
+				return nil, err
+			}
+		}
+		rows.Close()
+	}
+
+	if Find(related, "forum") {
+		rows, err := tx.Query("selectForumBySlug", postInfo.Post.Forum)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if rows.Next() {
+			postInfo.Forum = &models.Forum{}
+			err = rows.Scan(
+				&postInfo.Forum.User,
+				&postInfo.Forum.Title,
+				&postInfo.Forum.Slug,
+				&postInfo.Forum.Posts,
+				&postInfo.Forum.Threads)
+			rows.Close()
+			if err != nil {
+				_ = tx.Rollback()
+				return nil, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+
+	return &postInfo, nil
 }
 
 func (r *Repository) ChangePost(post *models.Post) (models.Post, error) {
@@ -352,10 +439,6 @@ func (r *Repository) Prepare() error {
 	if err != nil {
 		return err
 	}
-
-
-
-
 
 	_, err = r.db.Prepare("selectByThreadIDFlatDesc", selectByThreadIDFlatDesc)
 	if err != nil {

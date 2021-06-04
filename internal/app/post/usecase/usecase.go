@@ -27,42 +27,10 @@ func NewUseCase(postRepo postRepository.Repository,
 	}
 }
 
-func Find(slice []string, val string) bool {
-	for _, item := range slice {
-		if item == val {
-			return true
-		}
-	}
-	return false
-}
-
 func (u *UseCase) GetPostInfoByID(id uint64, related []string) (models.PostInfo, error) {
-	postInfo := &models.PostInfo{}
-	var err error
-	postInfo.Post, err = u.postRepo.GetPostByID(id)
+	postInfo, err := u.postRepo.GetPostInfoByID(id, related)
 	if err != nil {
 		return models.PostInfo{}, err
-	}
-
-	if Find(related, "user") {
-		postInfo.Author, err = u.userRepo.GetUserByNick(postInfo.Post.Author)
-		if err != nil {
-			return models.PostInfo{}, err
-		}
-	}
-
-	if Find(related, "thread") {
-		postInfo.Thread, err = u.threadRepo.FindThreadByID(postInfo.Post.Thread)
-		if err != nil {
-			return models.PostInfo{}, err
-		}
-	}
-
-	if Find(related, "forum") {
-		postInfo.Forum, err = u.forumRepo.FindBySlug(postInfo.Post.Forum)
-		if err != nil {
-			return models.PostInfo{}, err
-		}
 	}
 	return *postInfo, nil
 }
@@ -74,5 +42,3 @@ func (u *UseCase) ChangeMessage(post models.Post) (*models.Post, error) {
 	}
 	return &post, nil
 }
-
-

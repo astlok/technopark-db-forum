@@ -69,7 +69,7 @@ func NewRepo(db *pgx.ConnPool) *Repository {
 	}
 }
 
-func (r *Repository) GetForumUsers(forumSlug string, limit int64, since string, desc bool) ([]models.User, error) {
+func (r *Repository) GetForumUsers(forumSlug string, limit int, since string, desc bool) ([]models.User, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err

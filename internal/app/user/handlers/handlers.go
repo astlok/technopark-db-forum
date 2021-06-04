@@ -6,8 +6,8 @@ import (
 	"DBForum/internal/app/models"
 	userUseCase "DBForum/internal/app/user/usecase"
 	"errors"
-	"github.com/gorilla/mux"
 	"github.com/mailru/easyjson"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 )
@@ -22,14 +22,12 @@ func NewHandler(useCase userUseCase.UseCase) *Handlers {
 	}
 }
 
-func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	params := mux.Vars(r)
-	nickname := params["nickname"]
+func (h *Handlers) CreateUser(ctx *fasthttp.RequestCtx) {
+	nickname :=  ctx.UserValue("nickname").(string)
 
 	user := models.User{Nickname: nickname}
-	if err := easyjson.UnmarshalFromReader(r.Body, &user); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), &user); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
@@ -39,24 +37,23 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 		var users models.UserList
 		users, err = h.useCase.GetUsersByNickAndEmail(user.Nickname, user.Email)
 		if err != nil {
-			httputils.Respond(w, http.StatusInternalServerError, nil)
+			httputils.Respond(ctx, http.StatusInternalServerError, nil)
 			log.Println(err)
 			return
 		}
-		httputils.Respond(w, http.StatusConflict, users)
+		httputils.Respond(ctx, http.StatusConflict, users)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusCreated, user)
+	httputils.Respond(ctx, http.StatusCreated, user)
 }
 
-func (h *Handlers) GetUserInfo(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	nickname := params["nickname"]
+func (h *Handlers) GetUserInfo(ctx *fasthttp.RequestCtx) {
+	nickname := ctx.UserValue("nickname").(string)
 	user := &models.User{Nickname: nickname}
 
 	user, err := h.useCase.GetUserInfo(nickname)
@@ -65,26 +62,24 @@ func (h *Handlers) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find user by nickname: " + nickname,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
 
-	httputils.Respond(w, http.StatusOK, user)
+	httputils.Respond(ctx, http.StatusOK, user)
 }
 
-func (h *Handlers) ChangeUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	params := mux.Vars(r)
-	nickname := params["nickname"]
+func (h *Handlers) ChangeUser(ctx *fasthttp.RequestCtx) {
+	nickname := ctx.UserValue("nickname").(string)
 
 	user := models.User{Nickname: nickname}
-	if err := easyjson.UnmarshalFromReader(r.Body, &user); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), &user); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
@@ -94,15 +89,15 @@ func (h *Handlers) ChangeUser(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find user by nickname: " + nickname,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrConflict) {
 		resp := map[string]string{
 			"message": "This email is already registered by user: ",
 		}
-		httputils.RespondErr(w, http.StatusConflict, resp)
+		httputils.RespondErr(ctx, http.StatusConflict, resp)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, user)
+	httputils.Respond(ctx, http.StatusOK, user)
 }

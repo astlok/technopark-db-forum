@@ -45,7 +45,7 @@ func (u *UseCase) CreateThread(thread *models.Thread) (*models.Thread, error) {
 	return thread, nil
 }
 
-func (u *UseCase) GetForumUsers(forumSlug string, limit int64, since string, desc bool) ([]models.User, error) {
+func (u *UseCase) GetForumUsers(forumSlug string, limit int, since string, desc bool) ([]models.User, error) {
 	if limit == 0 {
 		limit = 100
 	}
@@ -59,7 +59,7 @@ func (u *UseCase) GetForumUsers(forumSlug string, limit int64, since string, des
 	return users, nil
 }
 
-func (u *UseCase) GetForumThreads(forumSlug string, limit int64, since string, desc bool) ([]models.Thread, error) {
+func (u *UseCase) GetForumThreads(forumSlug string, limit int, since string, desc bool) ([]models.Thread, error) {
 	threads, err := u.threadRepo.GetForumThreads(forumSlug, limit, since, desc)
 	if err != nil {
 		return nil, err

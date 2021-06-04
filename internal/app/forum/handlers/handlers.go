@@ -6,11 +6,10 @@ import (
 	"DBForum/internal/app/httputils"
 	"DBForum/internal/app/models"
 	"errors"
-	"github.com/gorilla/mux"
 	"github.com/mailru/easyjson"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 type Handlers struct {
@@ -23,13 +22,12 @@ func NewHandler(useCase forumUseCase.UseCase) *Handlers {
 	}
 }
 
-func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func (h *Handlers) Create(ctx *fasthttp.RequestCtx) {
 	forum := &models.Forum{}
 
-	if err := easyjson.UnmarshalFromReader(r.Body, forum); err != nil {
+	if err := easyjson.Unmarshal(ctx.PostBody(), forum); err != nil {
 		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		return
 	}
 
@@ -40,52 +38,48 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find user with nickname: " + nickname,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrDuplicate) {
-		httputils.Respond(w, http.StatusConflict, forum)
+		httputils.Respond(ctx, http.StatusConflict, forum)
 		return
 	}
 	if err != nil {
 		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		return
 	}
-	httputils.Respond(w, http.StatusCreated, forum)
+	httputils.Respond(ctx, http.StatusCreated, forum)
 }
 
-func (h *Handlers) Details(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	slug := params["slug"]
+func (h *Handlers) Details(ctx *fasthttp.RequestCtx) {
+	slug := ctx.UserValue("slug").(string)
 	forum, err := h.useCase.GetInfoBySlug(slug)
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find forum with slug: " + slug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, forum)
+	httputils.Respond(ctx, http.StatusOK, forum)
 }
 
-func (h *Handlers) CreateThread(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (h *Handlers) CreateThread(ctx *fasthttp.RequestCtx) {
 	thread := &models.Thread{}
-	if err := easyjson.UnmarshalFromReader(r.Body, thread); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), thread); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
 
-	params := mux.Vars(r)
-	forumSlug := params["slug"]
+	forumSlug := ctx.UserValue("slug").(string)
 	nickname := thread.Author
 	thread.Forum = forumSlug
 
@@ -93,39 +87,40 @@ func (h *Handlers) CreateThread(w http.ResponseWriter, r *http.Request) {
 	thread, err = h.useCase.CreateThread(thread)
 	if errors.Is(err, customErr.ErrUserNotFound) {
 		resp := map[string]string{
-			"message":"Can't find thread author by nickname: " + nickname,
+			"message": "Can't find thread author by nickname: " + nickname,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread forum by slug: " + forumSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrDuplicate) {
-		httputils.Respond(w, http.StatusConflict, thread)
+		httputils.Respond(ctx, http.StatusConflict, thread)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusCreated, thread)
+	httputils.Respond(ctx, http.StatusCreated, thread)
 }
 
-func (h *Handlers) GetUsers(w http.ResponseWriter, r *http.Request) {
-	forumSlug := mux.Vars(r)["slug"]
+func (h *Handlers) GetUsers(ctx *fasthttp.RequestCtx) {
+	forumSlug := ctx.UserValue("slug").(string)
 	// максимальное количество возвращаемых записей
-	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
+	limit := ctx.QueryArgs().GetUintOrZero("limit")
 	// Идентификатор пользователя, с которого будут выводиться пользоватли
 	//(пользователь с данным идентификатором в результат не попадает).
-	since := r.URL.Query().Get("since")
+
+	since := string(ctx.QueryArgs().Peek("since"))
 	// Флаг сортировки по убыванию.
-	desc, _ := strconv.ParseBool(r.URL.Query().Get("desc"))
+	desc := ctx.QueryArgs().GetBool("desc")
 
 	var users models.UserList
 	var err error
@@ -134,30 +129,29 @@ func (h *Handlers) GetUsers(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find forum by slug: " + forumSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
 
-	httputils.Respond(w, http.StatusOK, users)
+	httputils.Respond(ctx, http.StatusOK, users)
 }
 
-func (h *Handlers) GetThreads(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	forumSlug := params["slug"]
+func (h *Handlers) GetThreads(ctx *fasthttp.RequestCtx) {
+	forumSlug := ctx.UserValue("slug").(string)
 	var threads models.ThreadList
 
 	// максимальное количество возвращаемых записей
-	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
+	limit, _ := ctx.QueryArgs().GetUint("limit")
 	// Дата создания ветви обсуждения, с которой будут выводиться записи
 	// (ветвь обсуждения с указанной датой попадает в результат выборки).
-	since := r.URL.Query().Get("since")
+	since := string(ctx.QueryArgs().Peek("since"))
 	// Флаг сортировки по убыванию.
-	desc, _ := strconv.ParseBool(r.URL.Query().Get("desc"))
+	desc := ctx.QueryArgs().GetBool("desc")
 
 	var err error
 	threads, err = h.useCase.GetForumThreads(forumSlug, limit, since, desc)
@@ -165,13 +159,13 @@ func (h *Handlers) GetThreads(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find forum by slug: " + forumSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, threads)
+	httputils.Respond(ctx, http.StatusOK, threads)
 }

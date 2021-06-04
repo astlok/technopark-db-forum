@@ -6,8 +6,8 @@ import (
 	"DBForum/internal/app/models"
 	postUseCase "DBForum/internal/app/post/usecase"
 	"errors"
-	"github.com/gorilla/mux"
 	"github.com/mailru/easyjson"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 	"strconv"
@@ -24,19 +24,13 @@ func NewHandler(useCase postUseCase.UseCase) *Handlers {
 	}
 }
 
-func (h *Handlers) GetInfo(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	id, err := strconv.ParseUint(params["id"], 10, 64)
-	if err != nil {
-		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, nil)
-		return
-	}
+func (h *Handlers) GetInfo(ctx *fasthttp.RequestCtx) {
+	id, _ := strconv.ParseUint(ctx.UserValue("id").(string), 10, 64)
 	// Включение полной информации о соответвующем объекте сообщения.
 	// Если тип объекта не указан, то полная информация об этих объектах не
 	// передаётся.
 	// values: user/forum/thread
-	related := strings.Split(r.URL.Query().Get("related"), ",")
+	related := strings.Split(string(ctx.QueryArgs().Peek("related")), ",")
 
 	postInfo, err := h.useCase.GetPostInfoByID(id, related)
 
@@ -44,45 +38,40 @@ func (h *Handlers) GetInfo(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find post with id: ",
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
 		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, postInfo)
+	httputils.Respond(ctx, http.StatusOK, postInfo)
 }
 
-func (h *Handlers) ChangeMessage(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func (h *Handlers) ChangeMessage(ctx *fasthttp.RequestCtx) {
 	post := &models.Post{}
-	if err := easyjson.UnmarshalFromReader(r.Body, post); err != nil {
+	if err := easyjson.Unmarshal(ctx.PostBody(), post); err != nil {
 		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, post)
+		httputils.Respond(ctx, http.StatusInternalServerError, post)
 		return
 	}
-	params := mux.Vars(r)
-	id, err := strconv.ParseUint(params["id"], 10, 64)
-	if err != nil {
-		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, post)
-		return
-	}
+	id, _ := strconv.ParseUint(ctx.UserValue("id").(string), 10, 64)
+
 	post.ID = id
+	var err error
 	post, err = h.useCase.ChangeMessage(*post)
 	if errors.Is(err, customErr.ErrPostNotFound) {
 		resp := map[string]string{
 			"message": "Can't find post with id: " + strconv.FormatUint(id, 10),
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
 		log.Println(err)
-		httputils.Respond(w, http.StatusInternalServerError, post)
+		httputils.Respond(ctx, http.StatusInternalServerError, post)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, post)
+	httputils.Respond(ctx, http.StatusOK, post)
 }

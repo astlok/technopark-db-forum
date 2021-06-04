@@ -209,7 +209,7 @@ func (r *Repository) FindThreadByID(id uint64) (*models.Thread, error) {
 	return &thread, nil
 }
 
-func (r *Repository) GetForumThreads(forumSlug string, limit int64, since string, desc bool) ([]models.Thread, error) {
+func (r *Repository) GetForumThreads(forumSlug string, limit int, since string, desc bool) ([]models.Thread, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err

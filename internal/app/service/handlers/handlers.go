@@ -3,6 +3,7 @@ package handlers
 import (
 	"DBForum/internal/app/httputils"
 	serviceUseCase "DBForum/internal/app/service/usecase"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 )
@@ -17,22 +18,22 @@ func NewHandler(useCase serviceUseCase.UseCase) *Handlers {
 	}
 }
 
-func(h *Handlers) ClearDB(w http.ResponseWriter, r *http.Request) {
+func(h *Handlers) ClearDB(ctx *fasthttp.RequestCtx) {
 	err := h.useCase.ClearDB()
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, nil)
+	httputils.Respond(ctx, http.StatusOK, nil)
 }
 
-func(h *Handlers) Status(w http.ResponseWriter, r *http.Request) {
+func(h *Handlers) Status(ctx *fasthttp.RequestCtx) {
 	numRec, err := h.useCase.Status()
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, numRec)
+	httputils.Respond(ctx, http.StatusOK, numRec)
 }

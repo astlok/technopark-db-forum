@@ -12,7 +12,9 @@ import (
 	serviceRepo "DBForum/internal/app/service/repository"
 	serviceUCase "DBForum/internal/app/service/usecase"
 	"fmt"
+	router2 "github.com/fasthttp/router"
 	"github.com/sirupsen/logrus"
+	"github.com/valyala/fasthttp"
 
 	threadHandlers "DBForum/internal/app/thread/handlers"
 	threadRepo "DBForum/internal/app/thread/repository"
@@ -22,7 +24,6 @@ import (
 	userRepo "DBForum/internal/app/user/repository"
 	userUCase "DBForum/internal/app/user/usecase"
 
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 )
@@ -68,78 +69,74 @@ func main() {
 	threadHandler := threadHandlers.NewHandler(*threadUseCase)
 	userHandler := userHandlers.NewHandler(*userUseCase)
 
-	router := mux.NewRouter()
+	//router := mux.NewRouter()
+	router := router2.New()
 
-	router.Use(commonMiddleware)
-	//router.Use(LoggingRequest)
-	forum := router.PathPrefix("/api/forum").Subrouter()
-
-	//done
-	forum.HandleFunc("/create", forumHandler.Create).Methods(http.MethodPost)
+	//router.Use(commonMiddleware)
+	//forum := router.PathPrefix("/api/forum").Subrouter()
 
 	//done
-	forum.HandleFunc("/{slug}/details", forumHandler.Details).Methods(http.MethodGet)
+	router.POST("/api/forum/create", forumHandler.Create)
 
 	//done
-	forum.HandleFunc("/{slug}/create", forumHandler.CreateThread).Methods(http.MethodPost)
+	router.GET("/api/forum/{slug}/details", forumHandler.Details)
 
 	//done
-	forum.HandleFunc("/{slug}/users", forumHandler.GetUsers).Methods(http.MethodGet)
+	router.POST("/api/forum/{slug}/create", forumHandler.CreateThread)
 
 	//done
-	forum.HandleFunc("/{slug}/threads", forumHandler.GetThreads).Methods(http.MethodGet)
-
-	post := router.PathPrefix("/api/post").Subrouter()
-
-	post.HandleFunc("/{id:[0-9]+}/details", postHandler.GetInfo).Methods(http.MethodGet)
+	router.GET("/api/forum/{slug}/users", forumHandler.GetUsers)
 
 	//done
-	post.HandleFunc("/{id:[0-9]+}/details", postHandler.ChangeMessage).Methods(http.MethodPost)
+	router.GET("/api/forum/{slug}/threads", forumHandler.GetThreads)
 
-	service := router.PathPrefix("/api/service").Subrouter()
+	//post := router.PathPrefix("/api/post").Subrouter()
 
-	//done
-	service.HandleFunc("/clear", serviceHandler.ClearDB).Methods(http.MethodPost)
-
-	//done
-	service.HandleFunc("/status", serviceHandler.Status).Methods(http.MethodGet)
-
-	thread := router.PathPrefix("/api/thread").Subrouter()
+	router.GET("/api/post/{id}/details", postHandler.GetInfo)
 
 	//done
-	thread.HandleFunc("/{slug_or_id}/create", threadHandler.CreatePost).Methods(http.MethodPost)
+	router.POST("/api/post/{id}/details", postHandler.ChangeMessage)
+
+	//service := router.PathPrefix("/api/service").Subrouter()
 
 	//done
-	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ThreadInfo).Methods(http.MethodGet)
+	router.POST("/api/service/clear", serviceHandler.ClearDB)
+
+	//done
+	router.GET("/api/service/status", serviceHandler.Status)
+
+	//thread := router.PathPrefix("/api/thread").Subrouter()
+
+	//done
+	router.POST("/api/thread/{slug_or_id}/create", threadHandler.CreatePost)
+
+	//done
+	router.GET("/api/thread/{slug_or_id}/details", threadHandler.ThreadInfo)
 
 
 	//done
-	thread.HandleFunc("/{slug_or_id}/details", threadHandler.ChangeThread).Methods(http.MethodPost)
+	router.POST("/api/thread/{slug_or_id}/details", threadHandler.ChangeThread)
 
 	//done
-	thread.HandleFunc("/{slug_or_id}/posts", threadHandler.GetPosts).Methods(http.MethodGet)
+	router.GET("/api/thread/{slug_or_id}/posts", threadHandler.GetPosts)
 
 	//done
-	thread.HandleFunc("/{slug_or_id}/vote", threadHandler.VoteThread).Methods(http.MethodPost)
+	router.POST("/api/thread/{slug_or_id}/vote", threadHandler.VoteThread)
 
-	user := router.PathPrefix("/api/user").Subrouter()
-
-	//done
-	user.HandleFunc("/{nickname}/create", userHandler.CreateUser).Methods(http.MethodPost)
+	//user := router.PathPrefix("/api/user").Subrouter()
 
 	//done
-	user.HandleFunc("/{nickname}/profile", userHandler.GetUserInfo).Methods(http.MethodGet)
+	router.POST("/api/user/{nickname}/create", userHandler.CreateUser)
 
 	//done
-	user.HandleFunc("/{nickname}/profile", userHandler.ChangeUser).Methods(http.MethodPost)
+	router.GET("/api/user/{nickname}/profile", userHandler.GetUserInfo)
 
-	server := &http.Server{
-		Handler: router,
-		Addr:    ":5000",
-	}
+	//done
+	router.POST("/api/user/{nickname}/profile", userHandler.ChangeUser)
 
-	fmt.Printf("Starting server on port %s\n", server.Addr)
-	if err := server.ListenAndServe(); err != nil {
+
+	fmt.Printf("Starting server on port %s\n", ":5000")
+	if err := fasthttp.ListenAndServe(":5000", router.Handler); err != nil {
 		log.Fatal(err)
 	}
 }

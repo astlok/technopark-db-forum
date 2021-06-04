@@ -5,9 +5,9 @@ import (
 	"DBForum/internal/app/httputils"
 	"DBForum/internal/app/models"
 	threadUseCase "DBForum/internal/app/thread/usecase"
-	"github.com/gorilla/mux"
 	"github.com/mailru/easyjson"
 	"github.com/pkg/errors"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 	"strconv"
@@ -23,16 +23,15 @@ func NewHandler(useCase threadUseCase.UseCase) *Handlers {
 	}
 }
 
-func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func (h *Handlers) CreatePost(ctx *fasthttp.RequestCtx) {
 	var posts models.PostList
-	if err := easyjson.UnmarshalFromReader(r.Body, &posts); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), &posts); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	params := mux.Vars(r)
-	idOrSlug := params["slug_or_id"]
+
+	idOrSlug := ctx.UserValue("slug_or_id").(string)
 	posts, err := h.useCase.CreatePosts(idOrSlug, posts)
 	if errors.Is(err, customErr.ErrThreadNotFound) {
 		var message string
@@ -44,91 +43,87 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": message,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrUserNotFound) {
 		resp := map[string]string{
 			"message": "Can't find post author by nickname: ",
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrNoParent) {
 		resp := map[string]string{
 			"message": "Parent post was created in another thread",
 		}
-		httputils.RespondErr(w, http.StatusConflict, resp)
+		httputils.RespondErr(ctx, http.StatusConflict, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusCreated, posts)
+	httputils.Respond(ctx, http.StatusCreated, posts)
 }
 
-func (h *Handlers) ThreadInfo(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	idOrSlug := params["slug_or_id"]
+func (h *Handlers) ThreadInfo(ctx *fasthttp.RequestCtx) {
+	idOrSlug := ctx.UserValue("slug_or_id").(string)
 	thread, err := h.useCase.ThreadInfo(idOrSlug)
 	if errors.Is(err, customErr.ErrForumNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, thread)
+	httputils.Respond(ctx, http.StatusOK, thread)
 }
 
-func (h *Handlers) ChangeThread(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func (h *Handlers) ChangeThread(ctx *fasthttp.RequestCtx) {
 	var thread models.Thread
-	if err := easyjson.UnmarshalFromReader(r.Body, &thread); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), &thread); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
 
-	params := mux.Vars(r)
-	idOrSlug := params["slug_or_id"]
+	idOrSlug := ctx.UserValue("slug_or_id").(string)
 	thread, err := h.useCase.ChangeThread(idOrSlug, thread)
 
 	if errors.Is(err, customErr.ErrThreadNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, thread)
+	httputils.Respond(ctx, http.StatusOK, thread)
 }
 
-func (h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	idOrSlug := params["slug_or_id"]
+func (h *Handlers) GetPosts(ctx *fasthttp.RequestCtx) {
+	idOrSlug := ctx.UserValue("slug_or_id").(string)
 
 	// максимальное количество возвращаемых записей
-	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
+	limit := int64(ctx.QueryArgs().GetUintOrZero("limit"))
 	if limit == 0 {
 		limit = 100
 	}
 
 	// Дата создания ветви обсуждения, с которой будут выводиться записи
 	// (ветвь обсуждения с указанной датой попадает в результат выборки).
-	since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
+	since := int64(ctx.QueryArgs().GetUintOrZero("since"))
 
 	// Вид сортировки:
 	// flat - по дате, комментарии выводятся простым списком в порядке создания;
@@ -143,40 +138,39 @@ func (h *Handlers) GetPosts(w http.ResponseWriter, r *http.Request) {
 	//
 	// Default value : flat
 
-	sort := r.URL.Query().Get("sort")
+	sort := string(ctx.QueryArgs().Peek("sort"))
 
 	// Флаг сортировки по убыванию.
-	desc, err := strconv.ParseBool(r.URL.Query().Get("desc"))
+	desc := ctx.QueryArgs().GetBool("desc")
 
 	var posts models.PostList
+	var err error
 	posts, err = h.useCase.GetPosts(idOrSlug, limit, since, sort, desc)
 
 	if errors.Is(err, customErr.ErrThreadNotFound) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, posts)
+	httputils.Respond(ctx, http.StatusOK, posts)
 }
 
-func (h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func (h *Handlers) VoteThread(ctx *fasthttp.RequestCtx) {
 	var vote models.Vote
-	if err := easyjson.UnmarshalFromReader(r.Body, &vote); err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+	if err := easyjson.Unmarshal(ctx.PostBody(), &vote); err != nil {
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
 
-	params := mux.Vars(r)
-	idOrSlug := params["slug_or_id"]
+	idOrSlug := ctx.UserValue("slug_or_id").(string)
 	nickname := vote.Nickname
 
 	thread, err := h.useCase.VoteThread(idOrSlug, vote)
@@ -185,20 +179,20 @@ func (h *Handlers) VoteThread(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]string{
 			"message": "Can't find thread by slug or id: " + idOrSlug,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if errors.Is(err, customErr.ErrUserNotFound) {
 		resp := map[string]string{
 			"message": "Can't find user by nickname: " + nickname,
 		}
-		httputils.RespondErr(w, http.StatusNotFound, resp)
+		httputils.RespondErr(ctx, http.StatusNotFound, resp)
 		return
 	}
 	if err != nil {
-		httputils.Respond(w, http.StatusInternalServerError, nil)
+		httputils.Respond(ctx, http.StatusInternalServerError, nil)
 		log.Println(err)
 		return
 	}
-	httputils.Respond(w, http.StatusOK, thread)
+	httputils.Respond(ctx, http.StatusOK, thread)
 }

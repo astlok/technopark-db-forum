@@ -14,9 +14,9 @@ CREATE UNLOGGED TABLE dbforum.users
 );
 
 --new
-create index user_nickname_pokr_idx on dbforum.users (nickname, fullname, about, email);
-
--- create index gng on dbforum.users (email);
+-- create index user_nickname_pokr_idx on dbforum.users (nickname, fullname, about, email);
+--
+create index gng on dbforum.users (email);
 
 
 CREATE UNLOGGED TABLE dbforum.forum
@@ -34,7 +34,7 @@ CREATE UNLOGGED TABLE dbforum.forum
 );
 
 --new
-create index forum_slug_idx on dbforum.forum using hash (slug);
+create index forum_slug_idx on dbforum.forum using hash(slug);
 --new
 create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
 
@@ -56,7 +56,7 @@ CREATE UNLOGGED TABLE dbforum.thread
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname)
 );
-create index thread_slug_idx on dbforum.thread (forum_slug);
+-- create index thread_slug_idx on dbforum.thread (forum_slug);
 create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
 create index thread_id_pokr_idx on dbforum.thread (id, forum_slug);
 create index thread_2slug_idx on dbforum.thread (slug);
@@ -128,13 +128,13 @@ CREATE UNLOGGED TABLE dbforum.post
 -- ORDER BY tree[1] DESC, tree, id;
 
 create index pgb_first_idx on dbforum.post (thread_id, parent);
--- create index pgb_sec_idx on dbforum.post ((tree[1]), id);
--- create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
--- create index pgb_fourth_idx on dbforum.post (tree, id);
+create index pgb_sec_idx on dbforum.post ((tree[1]), id);
+create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
+create index pgb_fourth_idx on dbforum.post (tree, id);
 
 create index pgb_fifth_idx on dbforum.post using gin (tree);
 --TODO:
-create index pgb_test_idx on dbforum.post (thread_id, id);
+-- create index pgb_test_idx on dbforum.post (thread_id, id);
 
 
 -- create index if not exists post_id_path on dbforum.post (id, (tree[1]));
@@ -161,7 +161,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
     PRIMARY KEY (nickname, forum_slug)
 );
 --new
-create index forum_users_slug_idx on dbforum.forum_users using hash (forum_slug);
+create index forum_users_slug_idx on dbforum.forum_users (forum_slug);
 --new
 -- create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
 

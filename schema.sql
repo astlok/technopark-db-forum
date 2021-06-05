@@ -131,7 +131,7 @@ create index pgb_first_idx on dbforum.post (thread_id, parent);
 create index pgb_sec_idx on dbforum.post ((tree[1]), id);
 create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
 create index pgb_fourth_idx on dbforum.post (tree, id);
--- create index pgb_fifth_idx on dbforum.post using gin (tree);
+create index pgb_fifth_idx on dbforum.post using gin (tree);
 --TODO:
 -- create index pgb_test_idx on dbforum.post (thread_id, id);
 
@@ -162,7 +162,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 --new
 create index forum_users_slug_idx on dbforum.forum_users using hash (forum_slug);
 --new
-create index forum_users_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
+create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$

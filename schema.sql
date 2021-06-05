@@ -162,7 +162,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 --new
 create index forum_users_slug_idx on dbforum.forum_users using hash (forum_slug);
 --new
-create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
+-- create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$

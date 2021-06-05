@@ -128,12 +128,13 @@ CREATE UNLOGGED TABLE dbforum.post
 -- ORDER BY tree[1] DESC, tree, id;
 
 create index pgb_first_idx on dbforum.post (thread_id, parent);
-create index pgb_sec_idx on dbforum.post ((tree[1]), id);
-create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
-create index pgb_fourth_idx on dbforum.post (tree, id);
--- create index pgb_fifth_idx on dbforum.post using gin (tree);
+-- create index pgb_sec_idx on dbforum.post ((tree[1]), id);
+-- create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
+-- create index pgb_fourth_idx on dbforum.post (tree, id);
+
+create index pgb_fifth_idx on dbforum.post using gin (tree);
 --TODO:
--- create index pgb_test_idx on dbforum.post (thread_id, id);
+create index pgb_test_idx on dbforum.post (thread_id, id);
 
 
 -- create index if not exists post_id_path on dbforum.post (id, (tree[1]));

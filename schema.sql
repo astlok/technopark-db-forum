@@ -24,10 +24,8 @@ CREATE UNLOGGED TABLE dbforum.users
     email    CITEXT UNIQUE         NOT NULL
 );
 
---new
--- create index user_nickname_pokr_idx on dbforum.users (nickname, fullname, about, email);
---
-create index gng on dbforum.users (email);
+create index user_nickname_idx on dbforum.users (nickname);
+create index user_email_idx on dbforum.users (email);
 
 CREATE UNLOGGED TABLE dbforum.forum
 (
@@ -43,10 +41,7 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index forum_slug_idx on dbforum.forum using hash (slug);
---new
-create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
-
+create index forum_slug_idx on dbforum.forum (slug);
 
 CREATE UNLOGGED TABLE dbforum.thread
 (
@@ -65,18 +60,10 @@ CREATE UNLOGGED TABLE dbforum.thread
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname)
 );
--- create index thread_slug_idx on dbforum.thread (forum_slug);
--- create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
---new
-create index thread_id_pokr_idx on dbforum.thread using hash (forum_slug);
--- create index thread_2slug_idx on dbforum.thread (slug);
+create index thread_forum_slug_idx on dbforum.thread (forum_slug);
+create index thread_slug_id_forum_slug_idx on dbforum.thread (slug, id, forum_slug);
+create index thread_slug_idx on dbforum.thread (slug);
 create index thread_created_idx on dbforum.thread (created);
-
-
---new
-create index thread_slug_idx222 on dbforum.thread (forum_slug, created);
-
-
 
 CREATE UNLOGGED TABLE dbforum.votes
 (
@@ -91,7 +78,7 @@ CREATE UNLOGGED TABLE dbforum.votes
         REFERENCES dbforum.thread (id)
 );
 
-create index xax on dbforum.votes (thread_id, nickname, voice);
+create index votes_thread_id_nickname_voice_idx on dbforum.votes (thread_id, nickname, voice);
 
 CREATE UNLOGGED TABLE dbforum.post
 (
@@ -114,13 +101,11 @@ CREATE UNLOGGED TABLE dbforum.post
         REFERENCES dbforum.thread (id)
 );
 
-create index pgb_first_idx on dbforum.post (thread_id, parent);
-create index pgb_sec_idx on dbforum.post ((tree[1]), id);
-create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
-create index pgb_fourth_idx on dbforum.post (tree, id);
-create index pgb_fifth_idx on dbforum.post using gin (tree);
---TODO:
--- create index pgb_test_idx on dbforum.post (thread_id, id);
+create index posts_thread_id_parent_idx on dbforum.post (thread_id, parent);
+create index posts_tree_1_id_idx on dbforum.post ((tree[1]), id);
+create index posts_tree_1_desc_tree_id_idx on dbforum.post ((tree[1]) DESC, tree, id);
+create index posts_tree_id_idx on dbforum.post (tree, id);
+create index posts_tree_idx on dbforum.post using gin (tree);
 
 CREATE UNLOGGED TABLE dbforum.forum_users
 (
@@ -137,9 +122,7 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 
     PRIMARY KEY (nickname, forum_slug)
 );
-create index forum_users_slug_idx on dbforum.forum_users (forum_slug);
---new
--- create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
+create index forum_users_forum_slug_idx on dbforum.forum_users (forum_slug);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$

@@ -33,9 +33,9 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index forum_slug_idx on dbforum.forum (slug);
+create index forum_slug_idx on dbforum.forum using hash (slug);
 --new
--- create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
+create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
 
 
 CREATE UNLOGGED TABLE dbforum.thread

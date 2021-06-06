@@ -33,10 +33,9 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
+create index forum_slug_idx on dbforum.forum (slug);
 --new
-create index forum_slug_idx on dbforum.forum using hash(slug);
---new
-create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
+-- create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
 
 
 CREATE UNLOGGED TABLE dbforum.thread
@@ -56,7 +55,7 @@ CREATE UNLOGGED TABLE dbforum.thread
     FOREIGN KEY (author_nickname)
         REFERENCES dbforum.users (nickname)
 );
--- create index thread_slug_idx on dbforum.thread (forum_slug);
+create index thread_slug_idx on dbforum.thread (forum_slug);
 create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
 create index thread_id_pokr_idx on dbforum.thread (id, forum_slug);
 create index thread_2slug_idx on dbforum.thread (slug);
@@ -64,7 +63,7 @@ create index thread_created_idx on dbforum.thread (created);
 
 
 --new
-create index thread_slug_idx222 on dbforum.thread (forum_slug, created);
+-- create index thread_slug_idx222 on dbforum.thread (forum_slug, created);
 
 
 
@@ -160,7 +159,6 @@ CREATE UNLOGGED TABLE dbforum.forum_users
 
     PRIMARY KEY (nickname, forum_slug)
 );
---new
 create index forum_users_slug_idx on dbforum.forum_users (forum_slug);
 --new
 -- create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);

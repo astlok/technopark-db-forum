@@ -1,4 +1,15 @@
 ALTER USER postgres WITH ENCRYPTED PASSWORD 'admin';
+ALTER SYSTEM SET checkpoint_completion_target = '0.9';
+ALTER SYSTEM SET wal_buffers = '6912kB';
+ALTER SYSTEM SET default_statistics_target = '100';
+ALTER SYSTEM SET random_page_cost = '1.1';
+ALTER SYSTEM SET effective_io_concurrency = '200';
+ALTER SYSTEM SET seq_page_cost = '0.1';
+ALTER SYSTEM SET random_page_cost = '0.1';
+ALTER SYSTEM SET max_worker_processes = '4';
+ALTER SYSTEM SET max_parallel_workers_per_gather = '2';
+ALTER SYSTEM SET max_parallel_workers = '4';
+ALTER SYSTEM SET max_parallel_maintenance_workers = '2';
 DROP SCHEMA IF EXISTS dbforum CASCADE;
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE SCHEMA dbforum;
@@ -13,6 +24,9 @@ CREATE UNLOGGED TABLE dbforum.users
     email    CITEXT UNIQUE         NOT NULL
 );
 
+--new
+-- create index user_nickname_pokr_idx on dbforum.users (nickname, fullname, about, email);
+--
 create index gng on dbforum.users (email);
 
 CREATE UNLOGGED TABLE dbforum.forum
@@ -29,7 +43,10 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index forum_slug_idx on dbforum.forum  (slug);
+create index forum_slug_idx on dbforum.forum using hash (slug);
+--new
+create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
+
 
 CREATE UNLOGGED TABLE dbforum.thread
 (
@@ -54,6 +71,8 @@ CREATE UNLOGGED TABLE dbforum.thread
 create index thread_id_pokr_idx on dbforum.thread using hash (forum_slug);
 -- create index thread_2slug_idx on dbforum.thread (slug);
 create index thread_created_idx on dbforum.thread (created);
+
+
 --new
 create index thread_slug_idx222 on dbforum.thread (forum_slug, created);
 
@@ -100,6 +119,8 @@ create index pgb_sec_idx on dbforum.post ((tree[1]), id);
 create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
 create index pgb_fourth_idx on dbforum.post (tree, id);
 create index pgb_fifth_idx on dbforum.post using gin (tree);
+--TODO:
+-- create index pgb_test_idx on dbforum.post (thread_id, id);
 
 CREATE UNLOGGED TABLE dbforum.forum_users
 (
@@ -117,6 +138,8 @@ CREATE UNLOGGED TABLE dbforum.forum_users
     PRIMARY KEY (nickname, forum_slug)
 );
 create index forum_users_slug_idx on dbforum.forum_users (forum_slug);
+--new
+-- create index forum_users_pokr_slug_idx on dbforum.forum_users (forum_slug, nickname, fullname, about, email);
 
 CREATE OR REPLACE FUNCTION dbforum.insert_forum_user() RETURNS TRIGGER AS
 $$

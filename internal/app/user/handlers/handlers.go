@@ -23,7 +23,7 @@ func NewHandler(useCase userUseCase.UseCase) *Handlers {
 }
 
 func (h *Handlers) CreateUser(ctx *fasthttp.RequestCtx) {
-	nickname :=  ctx.UserValue("nickname").(string)
+	nickname := ctx.UserValue("nickname").(string)
 
 	user := models.User{Nickname: nickname}
 	if err := easyjson.Unmarshal(ctx.PostBody(), &user); err != nil {

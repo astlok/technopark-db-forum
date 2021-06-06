@@ -18,7 +18,7 @@ func NewHandler(useCase serviceUseCase.UseCase) *Handlers {
 	}
 }
 
-func(h *Handlers) ClearDB(ctx *fasthttp.RequestCtx) {
+func (h *Handlers) ClearDB(ctx *fasthttp.RequestCtx) {
 	err := h.useCase.ClearDB()
 	if err != nil {
 		httputils.Respond(ctx, http.StatusInternalServerError, nil)
@@ -28,7 +28,7 @@ func(h *Handlers) ClearDB(ctx *fasthttp.RequestCtx) {
 	httputils.Respond(ctx, http.StatusOK, nil)
 }
 
-func(h *Handlers) Status(ctx *fasthttp.RequestCtx) {
+func (h *Handlers) Status(ctx *fasthttp.RequestCtx) {
 	numRec, err := h.useCase.Status()
 	if err != nil {
 		httputils.Respond(ctx, http.StatusInternalServerError, nil)

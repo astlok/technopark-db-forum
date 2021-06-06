@@ -113,7 +113,6 @@ func main() {
 	//done
 	router.GET("/api/thread/{slug_or_id}/details", threadHandler.ThreadInfo)
 
-
 	//done
 	router.POST("/api/thread/{slug_or_id}/details", threadHandler.ChangeThread)
 
@@ -133,7 +132,6 @@ func main() {
 
 	//done
 	router.POST("/api/user/{nickname}/profile", userHandler.ChangeUser)
-
 
 	fmt.Printf("Starting server on port %s\n", ":5000")
 	if err := fasthttp.ListenAndServe(":5000", router.Handler); err != nil {

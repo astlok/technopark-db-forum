@@ -38,7 +38,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 		return err
 	}
 	rows, err := tx.Query("selectForumBySlug", &forum.Slug)
-	if  err != nil {
+	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -48,7 +48,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 			&forum.Title,
 			&forum.Slug,
 			&forum.Posts,
-			&forum.Threads);
+			&forum.Threads)
 		if err != nil {
 			_ = tx.Rollback()
 			return err
@@ -61,7 +61,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 	rows.Close()
 	var nickname string
 	rows, err = tx.Query("selectNicknameByNickname", forum.User)
-	if  err != nil {
+	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -69,7 +69,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 		_ = tx.Rollback()
 		return customErr.ErrUserNotFound
 	}
-	err = rows.Scan(&nickname);
+	err = rows.Scan(&nickname)
 	rows.Close()
 	if err != nil {
 		_ = tx.Rollback()
@@ -85,7 +85,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 	if driverErr, ok := err.(pgx.PgError); ok {
 		if driverErr.Code == "23505" {
 			_ = tx.Rollback()
-			return  customErr.ErrDuplicate
+			return customErr.ErrDuplicate
 		}
 	}
 	if err != nil {
@@ -102,7 +102,7 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	forum := models.Forum{}
 	rows, err := r.db.Query("selectForumBySlug", slug)
-	if  err != nil {
+	if err != nil {
 		return nil, err
 	}
 	if !rows.Next() {
@@ -113,7 +113,7 @@ func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 		&forum.Title,
 		&forum.Slug,
 		&forum.Posts,
-		&forum.Threads);
+		&forum.Threads)
 	rows.Close()
 	if err != nil {
 		return nil, err

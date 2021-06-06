@@ -205,4 +205,3 @@ CREATE TRIGGER post_insert_forum_usert
     ON dbforum.post
     FOR EACH ROW
 EXECUTE FUNCTION dbforum.insert_forum_user();
-

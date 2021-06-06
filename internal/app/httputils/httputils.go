@@ -31,5 +31,3 @@ func RespondErr(ctx *fasthttp.RequestCtx, code int, data interface{}) {
 		}
 	}
 }
-
-

@@ -33,9 +33,9 @@ CREATE UNLOGGED TABLE dbforum.forum
         REFERENCES dbforum.users (nickname)
 );
 
-create index forum_slug_idx on dbforum.forum (slug);
+-- create index forum_slug_idx on dbforum.forum (slug);
 --new
--- create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
+create index forum_pokr_idx on dbforum.forum (slug, title, user_nickname, posts, threads);
 
 
 CREATE UNLOGGED TABLE dbforum.thread
@@ -129,7 +129,7 @@ CREATE UNLOGGED TABLE dbforum.post
 create index pgb_first_idx on dbforum.post (thread_id, parent);
 create index pgb_sec_idx on dbforum.post ((tree[1]), id);
 create index pgb_third_idx on dbforum.post ((tree[1]) DESC, tree, id);
--- create index pgb_fourth_idx on dbforum.post (tree, id);
+create index pgb_fourth_idx on dbforum.post (tree, id);
 
 create index pgb_fifth_idx on dbforum.post using gin (tree);
 --TODO:

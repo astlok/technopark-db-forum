@@ -56,12 +56,11 @@ CREATE UNLOGGED TABLE dbforum.thread
         REFERENCES dbforum.users (nickname)
 );
 -- create index thread_slug_idx on dbforum.thread (forum_slug);
-create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
-create index thread_id_pokr_idx on dbforum.thread (id, forum_slug);
-create index thread_2slug_idx on dbforum.thread (slug);
+-- create index thread_slug_pokr_idx on dbforum.thread (slug, id, forum_slug);
+--new
+create index thread_id_pokr_idx on dbforum.thread using hash (forum_slug);
+-- create index thread_2slug_idx on dbforum.thread (slug);
 create index thread_created_idx on dbforum.thread (created);
-
-
 --new
 create index thread_slug_idx222 on dbforum.thread (forum_slug, created);
 
